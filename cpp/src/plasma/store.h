@@ -30,6 +30,7 @@
 #include "plasma/eviction_policy.h"
 #include "plasma/plasma.h"
 #include "plasma/protocol.h"
+#include "plasma/external_store.h"
 
 namespace plasma {
 
@@ -68,7 +69,8 @@ class PlasmaStore {
 
   // TODO: PascalCase PlasmaStore methods.
   PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
-              bool hugetlbfs_enabled);
+              bool hugetlbfs_enabled, const std::string& socket_name,
+              ExternalStore* external_store = nullptr);
 
   ~PlasmaStore();
 
@@ -123,6 +125,11 @@ class PlasmaStore {
   ///
   /// @param object_ids Object IDs of the objects to be deleted.
   void DeleteObjects(const std::vector<ObjectID>& object_ids);
+
+  /// Evict objects returned by the eviction policy.
+  ///
+  /// @param object_ids Object Ids of the objects to be evicted.
+  void EvictObjects(const std::vector<ObjectID>& object_ids);
 
   /// Process a get request from a client. This method assumes that we will
   /// eventually have these objects sealed. If one of the objects has not yet
@@ -203,6 +210,8 @@ class PlasmaStore {
   int RemoveFromClientObjectIds(const ObjectID& object_id, ObjectTableEntry* entry,
                                 Client* client);
 
+  std::shared_ptr<PlasmaClient> SelfClient();
+
   /// Event loop of the plasma store.
   EventLoop* loop_;
   /// The plasma store information, including the object tables, that is exposed
@@ -226,6 +235,12 @@ class PlasmaStore {
   std::unordered_map<int, std::unique_ptr<Client>> connected_clients_;
 
   std::unordered_set<ObjectID> deletion_cache_;
+
+  const std::string& socket_name_;
+  std::shared_ptr<PlasmaClient> self_client_;
+  std::mutex client_mtx_;
+
+  ExternalStore* external_store_;
 #ifdef PLASMA_CUDA
   arrow::cuda::CudaDeviceManager* manager_;
 #endif
