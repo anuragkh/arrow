@@ -49,10 +49,12 @@ class ExternalStore {
   /// to be evicted to the external store.
   ///
   /// \param object_ids The IDs of the objects to put.
-  /// \param object_buffers The object buffers to put.
+  /// \param object_data The object data to put.
+  /// \param object_metadata The object metadata to put.
   /// \return The return status.
   virtual Status Put(const std::vector<ObjectID> &object_ids,
-                     std::vector<ObjectBuffer> &object_buffers) = 0;
+                     const std::vector<std::string> &object_data,
+                     const std::vector<std::string> &object_metadata) = 0;
 
   /// This method will be called whenever an evicted object in the External
   /// store store needs to be accessed.
@@ -70,7 +72,7 @@ class ExternalStore {
   ///
   /// \param buffer The ObjectBuffer to serialize.
   /// \return The serialized value as a binary string.
-  std::string SerializeValue(const ObjectBuffer &buffer) const;
+  std::string SerializeValue(const std::string &object_data, const std::string &object_metadata) const;
 
   /// Deserializes a binary string into the object data and metadata.
   ///

@@ -45,9 +45,9 @@
 
 #include <ctime>
 #include <deque>
+#include <future>
 #include <memory>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -116,7 +116,7 @@ Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
                          bool hugepages_enabled, const std::string& socket_name,
                          ExternalStore* external_store)
-    : loop_(loop), eviction_policy_(&store_info_), socket_name_(socket_name), self_client_(nullptr), external_store_(external_store) {
+    : loop_(loop), eviction_policy_(&store_info_), external_store_worker_(external_store, socket_name) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;
@@ -407,6 +407,12 @@ void PlasmaStore::ProcessGetRequest(Client* client,
       // where entry == NULL, this will be called from SealObject.
       AddToClientObjectIds(object_id, entry, client);
     } else {
+      // If the object is not present locally, try fetching it from external store
+      if (!entry && external_store_worker_.IsValid()) {
+        ARROW_LOG(DEBUG) << "object " << object_id.hex() << " not found locally, trying external store";
+        external_store_worker_.EnqueueGet(object_id);
+      }
+
       // Add a placeholder plasma object to the get request to indicate that the
       // object is not present. This will be parsed by the client. We set the
       // data size to -1 to indicate that the object is not present.
@@ -450,7 +456,7 @@ int PlasmaStore::RemoveFromClientObjectIds(const ObjectID& object_id,
         // Above code does not really delete an object. Instead, it just put an
         // object to LRU cache which will be cleaned when the memory is not enough.
         deletion_cache_.erase(object_id);
-        DeleteObjects({object_id});
+        EvictObjects({object_id});
       }
     }
     // Return 1 to indicate that the client was removed.
@@ -576,21 +582,39 @@ void PlasmaStore::DeleteObjects(const std::vector<ObjectID>& object_ids) {
 }
 
 void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
-  bool wait_for_eviction = false;
-  std::thread eviction_thread;
-  if (external_store_ != nullptr && !object_ids.empty()) {
-    ARROW_LOG(DEBUG) << "Evicting " << object_ids.size() << " objects to ExternalStore...";
-    eviction_thread = std::thread([object_ids, this]() {
-      std::vector<ObjectBuffer> results;
-      std::lock_guard<std::mutex> lock(client_mtx_);
-      ARROW_CHECK_OK(SelfClient()->Get(object_ids, -1, &results));
-      ARROW_CHECK_OK(external_store_->Put(object_ids, results));
-    });
-    wait_for_eviction = true;
+  std::vector<std::string> object_data;
+  std::vector<std::string> object_metadata;
+  for (const auto& object_id : object_ids) {
+    ARROW_LOG(DEBUG) << "evicting object " << object_id.hex();
+    auto entry = GetObjectTableEntry(&store_info_, object_id);
+    // TODO(rkn): This should probably not fail, but should instead throw an
+    // error. Maybe we should also support deleting objects that have been
+    // created but not sealed.
+    ARROW_CHECK(entry != nullptr)
+    << "To evict an object it must be in the object table.";
+    ARROW_CHECK(entry->state == ObjectState::PLASMA_SEALED)
+    << "To evict an object it must have been sealed.";
+    ARROW_CHECK(entry->ref_count == 0)
+    << "To evict an object, there must be no clients currently using it.";
+
+    // Read object data so that we can evict it to external store.
+    if (external_store_worker_.IsValid()) {
+      const char* data_ptr = reinterpret_cast<const char*>(entry->pointer);
+      const char* metadata_ptr = data_ptr + entry->data_size;
+      object_data.emplace_back(data_ptr, static_cast<size_t>(entry->data_size));
+      object_metadata.emplace_back(metadata_ptr, static_cast<size_t>(entry->metadata_size));
+    }
+
+    store_info_.objects.erase(object_id);
+    // Inform all subscribers that the object has been deleted.
+    fb::ObjectInfoT notification;
+    notification.object_id = object_id.binary();
+    notification.is_deletion = true;
+    PushNotification(&notification);
   }
-  DeleteObjects(object_ids);
-  if (wait_for_eviction && eviction_thread.joinable()) {
-    eviction_thread.join();
+
+  if (external_store_worker_.IsValid() && !object_ids.empty()) {
+    external_store_worker_.Put(object_ids, object_data, object_metadata);
   }
 }
 
@@ -919,14 +943,6 @@ Status PlasmaStore::ProcessMessage(Client* client) {
   return Status::OK();
 }
 
-std::shared_ptr<PlasmaClient> PlasmaStore::SelfClient() {
-  if (self_client_ == nullptr) {
-    self_client_ = std::make_shared<PlasmaClient>();
-    ARROW_CHECK_OK(self_client_->Connect(socket_name_, ""));
-  }
-  return self_client_;
-}
-
 class PlasmaStoreRunner {
  public:
   PlasmaStoreRunner() {}
@@ -1092,6 +1108,7 @@ int main(int argc, char* argv[]) {
     if (external_store == nullptr) {
       ARROW_LOG(FATAL) << "No such external store \"" << name << "\"";
     }
+    ARROW_LOG(INFO) << "Connecting to external store " << name << " at endpoint " << external_store_endpoint;
     ARROW_CHECK_OK(external_store->Connect(external_store_endpoint));
   }
 

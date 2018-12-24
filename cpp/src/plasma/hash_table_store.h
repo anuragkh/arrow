@@ -28,7 +28,9 @@ class HashTableStore : public ExternalStore {
 
   Status Connect(const std::string &endpoint) override;
 
-  Status Put(const std::vector<ObjectID> &object_ids, std::vector<ObjectBuffer> &object_buffers) override;
+  Status Put(const std::vector<ObjectID> &object_ids,
+             const std::vector<std::string> &object_data,
+             const std::vector<std::string> &object_metadata) override;
 
   Status Get(const std::vector<ObjectID> &object_ids,
              std::vector<std::string> *object_data,

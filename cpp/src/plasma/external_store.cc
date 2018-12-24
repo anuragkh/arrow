@@ -62,15 +62,15 @@ std::shared_ptr<std::map<std::string, ExternalStore *>> ExternalStores::Stores()
   return external_stores_;
 }
 
-std::string ExternalStore::SerializeValue(const ObjectBuffer &buffer) const {
+std::string ExternalStore::SerializeValue(const std::string &object_data, const std::string &object_metadata) const {
   std::stringstream ss;
-  int64_t data_size = buffer.data->size();
-  int64_t metadata_size = buffer.metadata->size();
+  int64_t data_size = object_data.size();
+  int64_t metadata_size = object_metadata.size();
 
   ss.write(reinterpret_cast<const char*>(&data_size), sizeof(int64_t));
   ss.write(reinterpret_cast<const char*>(&metadata_size), sizeof(int64_t));
-  ss.write(reinterpret_cast<const char*>(buffer.data->data()), data_size);
-  ss.write(reinterpret_cast<const char*>(buffer.metadata->data()), metadata_size);
+  ss.write(reinterpret_cast<const char*>(object_data.data()), data_size);
+  ss.write(reinterpret_cast<const char*>(object_metadata.data()), metadata_size);
 
   return ss.str();
 }
