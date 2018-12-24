@@ -31,6 +31,7 @@
 #include "plasma/plasma.h"
 #include "plasma/protocol.h"
 #include "plasma/external_store.h"
+#include "external_store_worker.h"
 
 namespace plasma {
 
@@ -210,8 +211,6 @@ class PlasmaStore {
   int RemoveFromClientObjectIds(const ObjectID& object_id, ObjectTableEntry* entry,
                                 Client* client);
 
-  std::shared_ptr<PlasmaClient> SelfClient();
-
   /// Event loop of the plasma store.
   EventLoop* loop_;
   /// The plasma store information, including the object tables, that is exposed
@@ -236,11 +235,7 @@ class PlasmaStore {
 
   std::unordered_set<ObjectID> deletion_cache_;
 
-  const std::string& socket_name_;
-  std::shared_ptr<PlasmaClient> self_client_;
-  std::mutex client_mtx_;
-
-  ExternalStore* external_store_;
+  ExternalStoreWorker external_store_worker_;
 #ifdef PLASMA_CUDA
   arrow::cuda::CudaDeviceManager* manager_;
 #endif

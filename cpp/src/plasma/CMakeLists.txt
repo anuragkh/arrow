@@ -125,7 +125,7 @@ if ("${COMPILER_FAMILY}" STREQUAL "gcc")
     " -Wno-conversion")
 endif()
 
-list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store.cc" "hash_table_store.cc")
+list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store_worker.cc" "external_store.cc" "hash_table_store.cc")
 
 if (PLASMA_EXTRA_EXTERNAL_STORE_SOURCES)
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES ${PLASMA_EXTRA_EXTERNAL_STORE_SOURCES})
@@ -218,5 +218,8 @@ endfunction()
 ADD_PLASMA_TEST(test/serialization_tests
   EXTRA_LINK_LIBS plasma_shared ${PLASMA_LINK_LIBS})
 ADD_PLASMA_TEST(test/client_tests
+  EXTRA_LINK_LIBS plasma_shared ${PLASMA_LINK_LIBS}
+  EXTRA_DEPENDENCIES plasma_store_server)
+ADD_PLASMA_TEST(test/external_store_tests
   EXTRA_LINK_LIBS plasma_shared ${PLASMA_LINK_LIBS}
   EXTRA_DEPENDENCIES plasma_store_server)
