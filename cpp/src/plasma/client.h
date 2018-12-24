@@ -133,6 +133,33 @@ class ARROW_EXPORT PlasmaClient {
   Status Get(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
              ObjectBuffer* object_buffers);
 
+
+  /// Same as Get, but attempts to get the data from external store if it is
+  /// not found locally.
+  ///
+  /// \param object_ids The IDs of the objects to get.
+  /// \param timeout_ms The amount of time in milliseconds to wait before this
+  ///        request times out. If this value is -1, then no timeout is set.
+  /// \param[out] object_buffers The object results.
+  /// \return The return status.
+  Status GetTryExternal(const std::vector<ObjectID>& object_ids, int64_t timeout_ms,
+                        std::vector<ObjectBuffer>* object_buffers);
+
+  /// Same as Get, but attempts to get the data from external store if it is
+  /// not found locally.
+  ///
+  /// \param object_ids The IDs of the objects to get.
+  /// \param num_objects The number of object IDs to get.
+  /// \param timeout_ms The amount of time in milliseconds to wait before this
+  ///        request times out. If this value is -1, then no timeout is set.
+  /// \param object_buffers An array where the results will be stored.
+  /// \return The return status.
+  ///
+  /// The caller is responsible for releasing any retrieved objects, but it
+  /// should not release objects that were not retrieved.
+  Status GetTryExternal(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
+                        ObjectBuffer* object_buffers);
+
   /// Tell Plasma that the client no longer needs the object. This should be
   /// called after Get() or Create() when the client is done with the object.
   /// After this call, the buffer returned by Get() is no longer valid.

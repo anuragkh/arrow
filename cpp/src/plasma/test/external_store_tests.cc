@@ -62,7 +62,7 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
         external_test_executable.substr(0, external_test_executable.find_last_of("/"));
     std::string plasma_command = plasma_directory +
                                  "/plasma_store_server -m 104857600 -e hashtable://test -s " +
-                                 store_socket_name_ + " 1> /tmp/log.stdout 2> /tmp/log.stderr &";
+                                 store_socket_name_ + " 1> /dev/null 2> /dev/null &";
     system(plasma_command.c_str());
     ARROW_CHECK_OK(client_.Connect(store_socket_name_, ""));
   }
@@ -110,7 +110,7 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   for (int i = 0; i < 11; i++) {
     // Test for the object being returned despite potential eviction
     std::vector<ObjectBuffer> object_buffers;
-    ARROW_CHECK_OK(client_.Get({object_ids[i]}, -1, &object_buffers));
+    ARROW_CHECK_OK(client_.GetTryExternal({object_ids[i]}, -1, &object_buffers));
     ASSERT_EQ(object_buffers.size(), 1);
     ASSERT_EQ(object_buffers[0].device_num, 0);
     ASSERT_TRUE(object_buffers[0].data->data());
@@ -119,7 +119,7 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
 
   // Make sure we still cannot fetch objects that do not exist
   std::vector<ObjectBuffer> object_buffers;
-  ARROW_CHECK_OK(client_.Get({random_object_id()}, 100, &object_buffers));
+  ARROW_CHECK_OK(client_.GetTryExternal({random_object_id()}, 100, &object_buffers));
   ASSERT_EQ(object_buffers.size(), 1);
   ASSERT_EQ(object_buffers[0].device_num, 0);
   ASSERT_EQ(object_buffers[0].data, nullptr);

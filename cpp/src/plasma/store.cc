@@ -389,9 +389,10 @@ void PlasmaStore::UpdateObjectGetRequests(const ObjectID& object_id) {
   }
 }
 
-void PlasmaStore::ProcessGetRequest(Client* client,
-                                    const std::vector<ObjectID>& object_ids,
-                                    int64_t timeout_ms) {
+void PlasmaStore::ProcessGetRequest(Client *client,
+                                    const std::vector<ObjectID> &object_ids,
+                                    int64_t timeout_ms,
+                                    bool try_external_store) {
   // Create a get request for this object.
   auto get_req = new GetRequest(client, object_ids);
 
@@ -408,7 +409,7 @@ void PlasmaStore::ProcessGetRequest(Client* client,
       AddToClientObjectIds(object_id, entry, client);
     } else {
       // If the object is not present locally, try fetching it from external store
-      if (!entry && external_store_worker_.IsValid()) {
+      if (try_external_store && !entry && external_store_worker_.IsValid()) {
         ARROW_LOG(DEBUG) << "object " << object_id.hex() << " not found locally, trying external store";
         external_store_worker_.EnqueueGet(object_id);
       }
@@ -881,8 +882,9 @@ Status PlasmaStore::ProcessMessage(Client* client) {
     case fb::MessageType::PlasmaGetRequest: {
       std::vector<ObjectID> object_ids_to_get;
       int64_t timeout_ms;
-      RETURN_NOT_OK(ReadGetRequest(input, input_size, object_ids_to_get, &timeout_ms));
-      ProcessGetRequest(client, object_ids_to_get, timeout_ms);
+      bool try_external_store;
+      RETURN_NOT_OK(ReadGetRequest(input, input_size, object_ids_to_get, &timeout_ms, &try_external_store));
+      ProcessGetRequest(client, object_ids_to_get, timeout_ms, try_external_store);
     } break;
     case fb::MessageType::PlasmaReleaseRequest: {
       RETURN_NOT_OK(ReadReleaseRequest(input, input_size, &object_id));
