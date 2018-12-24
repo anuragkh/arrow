@@ -152,15 +152,18 @@ TEST(PlasmaSerialization, GetRequest) {
   object_ids[0] = random_object_id();
   object_ids[1] = random_object_id();
   int64_t timeout_ms = 1234;
-  ARROW_CHECK_OK(SendGetRequest(fd, object_ids, 2, timeout_ms));
+  bool try_external_store = true;
+  ARROW_CHECK_OK(SendGetRequest(fd, object_ids, 2, timeout_ms, try_external_store));
   std::vector<uint8_t> data = read_message_from_file(fd, MessageType::PlasmaGetRequest);
   std::vector<ObjectID> object_ids_return;
   int64_t timeout_ms_return;
+  bool try_external_store_return;
   ARROW_CHECK_OK(
-      ReadGetRequest(data.data(), data.size(), object_ids_return, &timeout_ms_return));
+      ReadGetRequest(data.data(), data.size(), object_ids_return, &timeout_ms_return, &try_external_store_return));
   ASSERT_EQ(object_ids[0], object_ids_return[0]);
   ASSERT_EQ(object_ids[1], object_ids_return[1]);
   ASSERT_EQ(timeout_ms, timeout_ms_return);
+  ASSERT_EQ(try_external_store, try_external_store_return);
   close(fd);
 }
 

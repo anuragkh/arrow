@@ -143,8 +143,10 @@ class PlasmaStore {
   /// @param client The client making this request.
   /// @param object_ids Object IDs of the objects to be gotten.
   /// @param timeout_ms The timeout for the get request in milliseconds.
-  void ProcessGetRequest(Client* client, const std::vector<ObjectID>& object_ids,
-                         int64_t timeout_ms);
+  void ProcessGetRequest(Client *client,
+                         const std::vector<ObjectID> &object_ids,
+                         int64_t timeout_ms,
+                         bool try_external_store);
 
   /// Seal an object. The object is now immutable and can be accessed with get.
   ///

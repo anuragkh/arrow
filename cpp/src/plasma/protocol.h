@@ -91,11 +91,14 @@ Status ReadSealReply(uint8_t* data, size_t size, ObjectID* object_id);
 
 /* Plasma Get message functions. */
 
-Status SendGetRequest(int sock, const ObjectID* object_ids, int64_t num_objects,
-                      int64_t timeout_ms);
+Status SendGetRequest(int sock,
+                      const ObjectID *object_ids,
+                      int64_t num_objects,
+                      int64_t timeout_ms,
+                      bool try_external_store = true);
 
 Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_ids,
-                      int64_t* timeout_ms);
+                      int64_t* timeout_ms, bool* try_external_store);
 
 Status SendGetReply(int sock, ObjectID object_ids[],
                     std::unordered_map<ObjectID, PlasmaObject>& plasma_objects,

@@ -180,6 +180,8 @@ table PlasmaGetRequest {
   object_ids: [string];
   // The number of milliseconds before the request should timeout.
   timeout_ms: long;
+  // Whether to fetch from external storage if not found locally.
+  try_external_store: bool = true;
 }
 
 table PlasmaGetReply {
