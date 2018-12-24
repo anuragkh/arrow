@@ -47,6 +47,7 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -57,6 +58,7 @@
 #include "plasma/fling.h"
 #include "plasma/io.h"
 #include "plasma/malloc.h"
+#include "store.h"
 
 #ifdef PLASMA_CUDA
 #include "arrow/gpu/cuda_api.h"
@@ -112,8 +114,9 @@ GetRequest::GetRequest(Client* client, const std::vector<ObjectID>& object_ids)
 Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 
 PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
-                         bool hugepages_enabled)
-    : loop_(loop), eviction_policy_(&store_info_) {
+                         bool hugepages_enabled, const std::string& socket_name,
+                         ExternalStore* external_store)
+    : loop_(loop), eviction_policy_(&store_info_), socket_name_(socket_name), self_client_(nullptr), external_store_(external_store) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;
@@ -141,7 +144,7 @@ void PlasmaStore::AddToClientObjectIds(const ObjectID& object_id, ObjectTableEnt
     // Tell the eviction policy that this object is being used.
     std::vector<ObjectID> objects_to_evict;
     eviction_policy_.BeginObjectAccess(object_id, &objects_to_evict);
-    DeleteObjects(objects_to_evict);
+    EvictObjects(objects_to_evict);
   }
   // Increase reference count.
   entry->ref_count++;
@@ -185,7 +188,7 @@ PlasmaError PlasmaStore::CreateObject(const ObjectID& object_id, int64_t data_si
         std::vector<ObjectID> objects_to_evict;
         bool success =
             eviction_policy_.RequireSpace(data_size + metadata_size, &objects_to_evict);
-        DeleteObjects(objects_to_evict);
+        EvictObjects(objects_to_evict);
         // Return an error to the client if not enough space could be freed to
         // create the object.
         if (!success) {
@@ -442,7 +445,7 @@ int PlasmaStore::RemoveFromClientObjectIds(const ObjectID& object_id,
         // Tell the eviction policy that this object is no longer being used.
         std::vector<ObjectID> objects_to_evict;
         eviction_policy_.EndObjectAccess(object_id, &objects_to_evict);
-        DeleteObjects(objects_to_evict);
+        EvictObjects(objects_to_evict);
       } else {
         // Above code does not really delete an object. Instead, it just put an
         // object to LRU cache which will be cleaned when the memory is not enough.
@@ -569,6 +572,25 @@ void PlasmaStore::DeleteObjects(const std::vector<ObjectID>& object_ids) {
     notification.object_id = object_id.binary();
     notification.is_deletion = true;
     PushNotification(&notification);
+  }
+}
+
+void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
+  bool wait_for_eviction = false;
+  std::thread eviction_thread;
+  if (external_store_ != nullptr && !object_ids.empty()) {
+    ARROW_LOG(DEBUG) << "Evicting " << object_ids.size() << " objects to ExternalStore...";
+    eviction_thread = std::thread([object_ids, this]() {
+      std::vector<ObjectBuffer> results;
+      std::lock_guard<std::mutex> lock(client_mtx_);
+      ARROW_CHECK_OK(SelfClient()->Get(object_ids, -1, &results));
+      ARROW_CHECK_OK(external_store_->Put(object_ids, results));
+    });
+    wait_for_eviction = true;
+  }
+  DeleteObjects(object_ids);
+  if (wait_for_eviction && eviction_thread.joinable()) {
+    eviction_thread.join();
   }
 }
 
@@ -876,7 +898,7 @@ Status PlasmaStore::ProcessMessage(Client* client) {
       std::vector<ObjectID> objects_to_evict;
       int64_t num_bytes_evicted =
           eviction_policy_.ChooseObjectsToEvict(num_bytes, &objects_to_evict);
-      DeleteObjects(objects_to_evict);
+      EvictObjects(objects_to_evict);
       HANDLE_SIGPIPE(SendEvictReply(client->fd, num_bytes_evicted), client->fd);
     } break;
     case fb::MessageType::PlasmaSubscribeRequest:
@@ -897,16 +919,25 @@ Status PlasmaStore::ProcessMessage(Client* client) {
   return Status::OK();
 }
 
+std::shared_ptr<PlasmaClient> PlasmaStore::SelfClient() {
+  if (self_client_ == nullptr) {
+    self_client_ = std::make_shared<PlasmaClient>();
+    ARROW_CHECK_OK(self_client_->Connect(socket_name_, ""));
+  }
+  return self_client_;
+}
+
 class PlasmaStoreRunner {
  public:
   PlasmaStoreRunner() {}
 
   void Start(char* socket_name, int64_t system_memory, std::string directory,
-             bool hugepages_enabled, bool use_one_memory_mapped_file) {
+             bool hugepages_enabled, bool use_one_memory_mapped_file,
+             ExternalStore* external_store = nullptr) {
     // Create the event loop.
     loop_.reset(new EventLoop);
     store_.reset(
-        new PlasmaStore(loop_.get(), system_memory, directory, hugepages_enabled));
+        new PlasmaStore(loop_.get(), system_memory, directory, hugepages_enabled, socket_name, external_store));
     plasma_config = store_->GetPlasmaStoreInfo();
 
     // If the store is configured to use a single memory-mapped file, then we
@@ -952,7 +983,8 @@ void HandleSignal(int signal) {
 }
 
 void StartServer(char* socket_name, int64_t system_memory, std::string plasma_directory,
-                 bool hugepages_enabled, bool use_one_memory_mapped_file) {
+                 bool hugepages_enabled, bool use_one_memory_mapped_file,
+                 ExternalStore* external_store = nullptr) {
   // Ignore SIGPIPE signals. If we don't do this, then when we attempt to write
   // to a client that has already died, the store could die.
   signal(SIGPIPE, SIG_IGN);
@@ -960,7 +992,7 @@ void StartServer(char* socket_name, int64_t system_memory, std::string plasma_di
   g_runner.reset(new PlasmaStoreRunner());
   signal(SIGTERM, HandleSignal);
   g_runner->Start(socket_name, system_memory, plasma_directory, hugepages_enabled,
-                  use_one_memory_mapped_file);
+                  use_one_memory_mapped_file, external_store);
 }
 
 }  // namespace plasma
@@ -971,15 +1003,19 @@ int main(int argc, char* argv[]) {
   char* socket_name = nullptr;
   // Directory where plasma memory mapped files are stored.
   std::string plasma_directory;
+  std::string external_store_endpoint;
   bool hugepages_enabled = false;
   // True if a single large memory-mapped file should be created at startup.
   bool use_one_memory_mapped_file = false;
   int64_t system_memory = -1;
   int c;
-  while ((c = getopt(argc, argv, "s:m:d:hf")) != -1) {
+  while ((c = getopt(argc, argv, "s:m:d:e:hf")) != -1) {
     switch (c) {
       case 'd':
         plasma_directory = std::string(optarg);
+        break;
+      case 'e':
+        external_store_endpoint = std::string(optarg);
         break;
       case 'h':
         hugepages_enabled = true;
@@ -1048,12 +1084,23 @@ int main(int argc, char* argv[]) {
     SetMallocGranularity(1024 * 1024 * 1024);  // 1 GB
   }
 #endif
+  // Get external store
+  plasma::ExternalStore *external_store = nullptr;
+  if (!external_store_endpoint.empty()) {
+    std::string name = plasma::ExternalStores::ExtractStoreName(external_store_endpoint);
+    external_store = plasma::ExternalStores::GetStore(name);
+    if (external_store == nullptr) {
+      ARROW_LOG(FATAL) << "No such external store \"" << name << "\"";
+    }
+    ARROW_CHECK_OK(external_store->Connect(external_store_endpoint));
+  }
+
   // Make it so dlmalloc fails if we try to request more memory than is
   // available.
   plasma::dlmalloc_set_footprint_limit((size_t)system_memory);
   ARROW_LOG(DEBUG) << "starting server listening on " << socket_name;
   plasma::StartServer(socket_name, system_memory, plasma_directory, hugepages_enabled,
-                      use_one_memory_mapped_file);
+                      use_one_memory_mapped_file, external_store);
   plasma::g_runner->Shutdown();
   plasma::g_runner = nullptr;
 
