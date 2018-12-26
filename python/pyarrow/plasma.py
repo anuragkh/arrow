@@ -79,7 +79,8 @@ def build_plasma_tensorflow_op():
 def start_plasma_store(plasma_store_memory,
                        use_valgrind=False, use_profiler=False,
                        use_one_memory_mapped_file=False,
-                       plasma_directory=None, use_hugepages=False):
+                       plasma_directory=None, use_hugepages=False,
+                       external_store=None):
     """Start a plasma store process.
     Args:
         plasma_store_memory (int): Capacity of the plasma store in bytes.
@@ -92,6 +93,7 @@ def start_plasma_store(plasma_store_memory,
         plasma_directory (str): Directory where plasma memory mapped files
             will be stored.
         use_hugepages (bool): True if the plasma store should use huge pages.
+        external_store (str): External store to use for evicted objects.
     Return:
         A tuple of the name of the plasma store socket and the process ID of
             the plasma store process.
@@ -113,6 +115,8 @@ def start_plasma_store(plasma_store_memory,
             command += ["-d", plasma_directory]
         if use_hugepages:
             command += ["-h"]
+        if external_store is not None:
+            command += ["-e", external_store]
         stdout_file = None
         stderr_file = None
         if use_valgrind:
