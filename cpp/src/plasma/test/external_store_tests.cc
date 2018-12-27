@@ -85,8 +85,6 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
 };
 
 TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
-  // Create many objects on the first client. Seal one third, abort one third,
-  // and leave the last third unsealed.
   std::vector<ObjectID> object_ids;
   std::string data(10 * 1024 * 1024, 'x');
   std::string metadata(1, char(5));
@@ -119,7 +117,7 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
     // Since we are accessing objects sequentially, every object we
     // access would be a cache "miss" owing to LRU eviction.
 
-    // Try and access object from plasma store, without trying external store
+    // Try and access object from plasma store, without trying external store.
     // This should fail to fetch the object.
     std::vector<ObjectBuffer> object_buffers;
     ARROW_CHECK_OK(client_.Get({object_ids[i]}, 0, &object_buffers));
@@ -153,10 +151,10 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   ASSERT_FALSE(has_object);
 
   // Try to manually unevict objects
-  client_.TryUnevictObjects({object_ids.at(0), object_ids.at(1)});
+  client_.TryUnevict({object_ids.at(0), object_ids.at(1)});
 
   for (int i = 0; i < 2; i++) {
-    // Try and access object from plasma store, without trying external store
+    // Try and access object from plasma store, without trying external store.
     // This should succeed to fetch the object.
     std::vector<ObjectBuffer> object_buffers;
     ARROW_CHECK_OK(client_.Get({object_ids[i]}, -1, &object_buffers));
