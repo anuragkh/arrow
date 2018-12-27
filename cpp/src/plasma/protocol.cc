@@ -498,6 +498,29 @@ Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes) {
   return Status::OK();
 }
 
+// Unevict messages.
+
+Status SendTryUnevictRequest(int sock, const std::vector<ObjectID>& object_ids) {
+  flatbuffers::FlatBufferBuilder fbb;
+  auto message = fb::CreatePlasmaTryUnevictRequest(
+      fbb, static_cast<int32_t>(object_ids.size()),
+      ToFlatbuffer(&fbb, &object_ids[0], object_ids.size()));
+  return PlasmaSend(sock, MessageType::PlasmaTryUnevictRequest, &fbb, message);
+}
+
+Status ReadTryUnevictRequest(uint8_t* data, size_t size, std::vector<ObjectID>* object_ids) {
+  using fb::PlasmaTryUnevictRequest;
+
+  DCHECK(data);
+  DCHECK(object_ids);
+  auto message = flatbuffers::GetRoot<PlasmaTryUnevictRequest>(data);
+  DCHECK(VerifyFlatbuffer(message, data, size));
+  ToVector(*message, object_ids, [](const PlasmaTryUnevictRequest& request, int i) {
+    return ObjectID::from_binary(request.object_ids()->Get(i)->str());
+  });
+  return Status::OK();
+}
+
 // Get messages.
 
 Status SendGetRequest(int sock,

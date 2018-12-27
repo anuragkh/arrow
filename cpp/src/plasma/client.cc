@@ -176,8 +176,7 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
   Status GetTryExternal(const std::vector<ObjectID>& object_ids, int64_t timeout_ms,
              std::vector<ObjectBuffer> *out);
 
-  Status GetTryExternal(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
-             ObjectBuffer *out);
+  void TryUnevictObjects(const std::vector<ObjectID>& object_ids);
 
   Status Release(const ObjectID& object_id);
 
@@ -572,6 +571,19 @@ Status PlasmaClient::Impl::GetBuffers(const ObjectID *object_ids,
   return Status::OK();
 }
 
+void PlasmaClient::Impl::TryUnevictObjects(const std::vector<ObjectID>& object_ids) {
+  std::vector<ObjectID> to_unevict;
+  for (auto& object_id : object_ids) {
+    // If the object is in used, skip it.
+    if (objects_in_use_.count(object_id) == 0) {
+      to_unevict.push_back(object_id);
+    }
+  }
+  if (!to_unevict.empty()) {
+    ARROW_CHECK_OK(SendTryUnevictRequest(store_conn_, to_unevict));
+  }
+}
+
 Status PlasmaClient::Impl::Get(const std::vector<ObjectID>& object_ids,
                                int64_t timeout_ms, std::vector<ObjectBuffer>* out) {
   const auto wrap_buffer = [=](const ObjectID& object_id,
@@ -600,15 +612,6 @@ Status PlasmaClient::Impl::GetTryExternal(const std::vector<ObjectID> &object_id
   const size_t num_objects = object_ids.size();
   *out = std::vector<ObjectBuffer>(num_objects);
   return GetBuffers(&object_ids[0], num_objects, timeout_ms, wrap_buffer, true, &(*out)[0]);
-}
-
-Status PlasmaClient::Impl::GetTryExternal(const ObjectID *object_ids,
-                                          int64_t num_objects,
-                                          int64_t timeout_ms,
-                                          ObjectBuffer *out) {
-  const auto wrap_buffer = [](const ObjectID& object_id,
-                              const std::shared_ptr<Buffer>& buffer) { return buffer; };
-  return GetBuffers(object_ids, num_objects, timeout_ms, wrap_buffer, true, out);
 }
 
 Status PlasmaClient::Impl::MarkObjectUnused(const ObjectID& object_id) {
@@ -959,11 +962,8 @@ Status PlasmaClient::GetTryExternal(const std::vector<ObjectID> &object_ids,
   return impl_->GetTryExternal(object_ids, timeout_ms, object_buffers);
 }
 
-Status PlasmaClient::GetTryExternal(const ObjectID *object_ids,
-                                    int64_t num_objects,
-                                    int64_t timeout_ms,
-                                    ObjectBuffer *object_buffers) {
-  return impl_->GetTryExternal(object_ids, num_objects, timeout_ms, object_buffers);
+void PlasmaClient::TryUnevictObjects(const std::vector<ObjectID> &object_ids) {
+  return impl_->TryUnevictObjects(object_ids);
 }
 
 Status PlasmaClient::Release(const ObjectID& object_id) {
