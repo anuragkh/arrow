@@ -132,6 +132,10 @@ if (PLASMA_EXTRA_EXTERNAL_STORE_SOURCES)
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES ${PLASMA_EXTRA_EXTERNAL_STORE_SOURCES})
 endif ()
 
+if (PLASMA_EXTERNAL_STORE_LIBDIRS)
+  link_directories(${PLASMA_EXTERNAL_STORE_LIBDIRS})
+endif ()
+
 # We use static libraries for the plasma_store_server executable so that it can
 # be copied around and used in different locations.
 add_executable(plasma_store_server ${PLASMA_EXTERNAL_STORE_SOURCES} store.cc)
