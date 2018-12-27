@@ -148,7 +148,7 @@ class ARROW_EXPORT PlasmaClient {
   /// Try to un-evict objects from the external store back to the plasma store.
   ///
   /// \param object_ids The IDs of the objects to un-evict.
-  void TryUnevictObjects(const std::vector<ObjectID>& object_ids);
+  void TryUnevict(const std::vector<ObjectID> &object_ids);
 
   /// Tell Plasma that the client no longer needs the object. This should be
   /// called after Get() or Create() when the client is done with the object.
