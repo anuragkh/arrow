@@ -117,6 +117,8 @@ cdef extern from "plasma/client.h" nogil:
 
         CStatus Evict(int64_t num_bytes, int64_t& num_bytes_evicted)
 
+        void TryUnevict(const c_vector[CUniqueID] object_ids)
+
         CStatus Hash(const CUniqueID& object_id, uint8_t* digest)
 
         CStatus Release(const CUniqueID& object_id)
@@ -275,7 +277,7 @@ cdef class PlasmaClient:
         self.store_socket_name = b""
 
     cdef _get_object_buffers(self, object_ids, int64_t timeout_ms,
-                             bool try_external,
+                             c_bool try_external,
                              c_vector[CObjectBuffer]* result):
         cdef:
             c_vector[CUniqueID] ids
@@ -412,7 +414,7 @@ cdef class PlasmaClient:
                 result.append((metadata, data))
         return result
 
-    def get_metadata(self, object_ids, timeout_ms=-1):
+    def get_metadata(self, object_ids, timeout_ms=-1, try_external=False):
         """
         Returns metadata buffer from the PlasmaStore based on object ID.
 
@@ -427,6 +429,9 @@ cdef class PlasmaClient:
             The number of milliseconds that the get call should block before
             timing out and returning. Pass -1 if the call should block and 0
             if the call should return immediately.
+        try_external : bool, default = False
+            Try to fetch data from the external store if the data is not found
+            locally.
 
         Returns
         -------
@@ -435,7 +440,7 @@ cdef class PlasmaClient:
             object_ids and None if the object was not available.
         """
         cdef c_vector[CObjectBuffer] object_buffers
-        self._get_object_buffers(object_ids, timeout_ms, &object_buffers)
+        self._get_object_buffers(object_ids, timeout_ms, try_external, &object_buffers)
         result = []
         for i in range(object_buffers.size()):
             if object_buffers[i].metadata.get() != nullptr:
@@ -509,7 +514,7 @@ cdef class PlasmaClient:
         self.seal(target_id)
         return target_id
 
-    def get(self, object_ids, int timeout_ms=-1, bool try_external=False, serialization_context=None):
+    def get(self, object_ids, int timeout_ms=-1, c_bool try_external=False, serialization_context=None):
         """
         Get one or more Python values from the object store.
 
@@ -550,6 +555,22 @@ cdef class PlasmaClient:
             return results
         else:
             return self.get([object_ids], timeout_ms, try_external, serialization_context)[0]
+
+    def try_unevict(self, object_ids):
+        """
+        Delete the objects with the given IDs from other object store.
+
+        Parameters
+        ----------
+        object_ids : list
+            A list of strings used to identify the objects.
+        """
+        cdef c_vector[CUniqueID] ids
+        cdef ObjectID object_id
+        for object_id in object_ids:
+            ids.push_back(object_id.data)
+        with nogil:
+            self.client.get().TryUnevict(ids)
 
     def seal(self, ObjectID object_id):
         """
