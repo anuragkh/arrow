@@ -62,7 +62,7 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
         external_test_executable.substr(0, external_test_executable.find_last_of("/"));
     std::string plasma_command = plasma_directory +
                                  "/plasma_store_server -m 104857600 -e hashtable://test -s " +
-                                 store_socket_name_ + " 1> /dev/null 2> /dev/null &";
+                                 store_socket_name_ + " 1> /tmp/log.stdout 2> /tmp/log.stderr &";
     system(plasma_command.c_str());
     ARROW_CHECK_OK(client_.Connect(store_socket_name_, ""));
   }
@@ -107,13 +107,33 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
     ASSERT_TRUE(has_object);
   }
 
+  // Check to make sure that the first two objects have been evicted
+  bool has_object;
+  ARROW_CHECK_OK(client_.Contains(object_ids.at(0), &has_object));
+  ASSERT_FALSE(has_object);
+
+  ARROW_CHECK_OK(client_.Contains(object_ids.at(1), &has_object));
+  ASSERT_FALSE(has_object);
+
   for (int i = 0; i < 11; i++) {
-    // Test for the object being returned despite potential eviction
+    // Since we are accessing objects sequentially, every object we
+    // access would be a cache "miss" owing to LRU eviction.
+
+    // Try and access object from plasma store, without trying external store
+    // This should fail to fetch the object.
     std::vector<ObjectBuffer> object_buffers;
+    ARROW_CHECK_OK(client_.Get({object_ids[i]}, 0, &object_buffers));
+    ASSERT_EQ(object_buffers.size(), 1);
+    ASSERT_EQ(object_buffers[0].device_num, 0);
+    ASSERT_FALSE(object_buffers[0].data);
+
+    // Try and access the object from the plasma store first, and then try
+    // external store on failure. This should succeed to fetch the object.
+    // However, it may evict the next few objects.
     ARROW_CHECK_OK(client_.GetTryExternal({object_ids[i]}, -1, &object_buffers));
     ASSERT_EQ(object_buffers.size(), 1);
     ASSERT_EQ(object_buffers[0].device_num, 0);
-    ASSERT_TRUE(object_buffers[0].data->data());
+    ASSERT_TRUE(object_buffers[0].data);
     AssertObjectBufferEqual(object_buffers[0], metadata, data);
   }
 
@@ -124,6 +144,27 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   ASSERT_EQ(object_buffers[0].device_num, 0);
   ASSERT_EQ(object_buffers[0].data, nullptr);
   ASSERT_EQ(object_buffers[0].metadata, nullptr);
+
+  // Check (again) to make sure that the first two objects have been evicted
+  ARROW_CHECK_OK(client_.Contains(object_ids.at(0), &has_object));
+  ASSERT_FALSE(has_object);
+
+  ARROW_CHECK_OK(client_.Contains(object_ids.at(1), &has_object));
+  ASSERT_FALSE(has_object);
+
+  // Try to manually unevict objects
+  client_.TryUnevictObjects({object_ids.at(0), object_ids.at(1)});
+
+  for (int i = 0; i < 2; i++) {
+    // Try and access object from plasma store, without trying external store
+    // This should succeed to fetch the object.
+    std::vector<ObjectBuffer> object_buffers;
+    ARROW_CHECK_OK(client_.Get({object_ids[i]}, -1, &object_buffers));
+    ASSERT_EQ(object_buffers.size(), 1);
+    ASSERT_EQ(object_buffers[0].device_num, 0);
+    ASSERT_TRUE(object_buffers[0].data);
+    AssertObjectBufferEqual(object_buffers[0], metadata, data);
+  }
 }
 
 }  // namespace plasma

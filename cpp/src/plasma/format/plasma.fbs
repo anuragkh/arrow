@@ -54,6 +54,8 @@ enum MessageType:long {
   // Make room for new objects in the plasma store.
   PlasmaEvictRequest,
   PlasmaEvictReply,
+  // Un-evict objects from external store if possible
+  PlasmaTryUnevictRequest,
   // Subscribe to a list of objects or to all objects.
   PlasmaSubscribeRequest,
   // Unsubscribe.
@@ -272,6 +274,13 @@ table PlasmaEvictRequest {
 table PlasmaEvictReply {
   // Number of bytes that have been freed.
   num_bytes: ulong;
+}
+
+table PlasmaTryUnevictRequest {
+  // The number of objects to un-evict.
+  count: int;
+  // Objects to un-evict.
+  object_ids: [string];
 }
 
 table PlasmaSubscribeRequest {

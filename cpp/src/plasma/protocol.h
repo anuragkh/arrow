@@ -172,6 +172,12 @@ Status SendEvictReply(int sock, int64_t num_bytes);
 
 Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes);
 
+/* Plasma Unevict message functions. */
+
+Status SendTryUnevictRequest(int sock, const std::vector<ObjectID>& object_ids);
+
+Status ReadTryUnevictRequest(uint8_t* data, size_t size, std::vector<ObjectID>* object_ids);
+
 /* Plasma Subscribe message functions. */
 
 Status SendSubscribeRequest(int sock);

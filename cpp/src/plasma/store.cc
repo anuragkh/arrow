@@ -389,6 +389,16 @@ void PlasmaStore::UpdateObjectGetRequests(const ObjectID& object_id) {
   }
 }
 
+void PlasmaStore::TryUnevictObjects(const std::vector<ObjectID> &object_ids) {
+  // If the object is not present locally, try fetching it from external store
+  if (external_store_worker_.IsValid()) {
+    for (const ObjectID &object_id : object_ids) {
+      ARROW_LOG(DEBUG) << "attempting to un-evict object " << object_id.hex() << " from external store";
+      external_store_worker_.EnqueueGet(object_id);
+    }
+  }
+}
+
 void PlasmaStore::ProcessGetRequest(Client *client,
                                     const std::vector<ObjectID> &object_ids,
                                     int64_t timeout_ms,
@@ -409,9 +419,8 @@ void PlasmaStore::ProcessGetRequest(Client *client,
       AddToClientObjectIds(object_id, entry, client);
     } else {
       // If the object is not present locally, try fetching it from external store
-      if (try_external_store && !entry && external_store_worker_.IsValid()) {
-        ARROW_LOG(DEBUG) << "object " << object_id.hex() << " not found locally, trying external store";
-        external_store_worker_.EnqueueGet(object_id);
+      if (try_external_store && !entry) {
+        TryUnevictObjects({object_id});
       }
 
       // Add a placeholder plasma object to the get request to indicate that the
@@ -889,6 +898,11 @@ Status PlasmaStore::ProcessMessage(Client* client) {
     case fb::MessageType::PlasmaReleaseRequest: {
       RETURN_NOT_OK(ReadReleaseRequest(input, input_size, &object_id));
       ReleaseObject(object_id, client);
+    } break;
+    case fb::MessageType::PlasmaTryUnevictRequest: {
+      std::vector<ObjectID> object_ids;
+      RETURN_NOT_OK(ReadTryUnevictRequest(input, input_size, &object_ids));
+      TryUnevictObjects(object_ids);
     } break;
     case fb::MessageType::PlasmaDeleteRequest: {
       std::vector<ObjectID> object_ids;
