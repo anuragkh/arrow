@@ -227,6 +227,10 @@ static|shared (default shared)")
     "Build s3 external store bindings for plasma object store"
     OFF)
 
+  option(ARROW_PLASMA_REDIS
+    "Build Redis external store bindings for plasma object store"
+    OFF)
+
   option(ARROW_PLASMA_JAVA_CLIENT
     "Build the plasma object store java client"
     OFF)
