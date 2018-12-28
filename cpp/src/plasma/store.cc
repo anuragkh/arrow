@@ -1125,7 +1125,8 @@ int main(int argc, char* argv[]) {
       ARROW_LOG(FATAL) << "No such external store \"" << name << "\"";
     }
     ARROW_LOG(INFO) << "Connecting to external store " << name << " at endpoint " << external_store_endpoint;
-    ARROW_CHECK_OK(external_store->Connect(external_store_endpoint));
+    auto s = external_store->Connect(external_store_endpoint);
+    ARROW_CHECK_OK(s);
   }
 
   // Make it so dlmalloc fails if we try to request more memory than is
