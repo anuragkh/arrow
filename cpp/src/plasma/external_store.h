@@ -67,18 +67,6 @@ class ExternalStore {
                      std::vector<std::string> *object_data,
                      std::vector<std::string> *object_metadata) = 0;
 
- protected:
-  /// Serializes the ObjectBuffer to a single binary string
-  ///
-  /// \param buffer The ObjectBuffer to serialize.
-  /// \return The serialized value as a binary string.
-  std::string SerializeValue(const std::string &object_data, const std::string &object_metadata) const;
-
-  /// Deserializes a binary string into the object data and metadata.
-  ///
-  /// \param binary The binary string to deserialize.
-  /// \return The deserialized string pair containing the object data and metadata.
-  std::pair<std::string, std::string> DeserializeValue(const std::string &binary) const;
 };
 
 class ExternalStores {
