@@ -23,7 +23,7 @@ namespace plasma {
 
 class ExternalStoreWorker {
  public:
-  explicit ExternalStoreWorker(ExternalStore *external_store,
+  explicit ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
                                const std::string &store_socket);
 
   ~ExternalStoreWorker();
@@ -61,7 +61,7 @@ class ExternalStoreWorker {
   /// @return A client to the plasma store.
   PlasmaClient *Client();
 
-  ExternalStore *external_store_;
+  std::shared_ptr<ExternalStore> external_store_;
   PlasmaClient *client_;
   std::string store_socket_;
 
