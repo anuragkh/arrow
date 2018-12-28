@@ -1124,7 +1124,7 @@ int main(int argc, char* argv[]) {
     if (external_store == nullptr) {
       ARROW_LOG(FATAL) << "No such external store \"" << name << "\"";
     }
-    ARROW_LOG(INFO) << "Connecting to external store " << name << " at endpoint " << external_store_endpoint;
+    ARROW_LOG(DEBUG) << "Connecting to external store " << name << " at endpoint " << external_store_endpoint;
     auto s = external_store->Connect(external_store_endpoint);
     ARROW_CHECK_OK(s);
   }
