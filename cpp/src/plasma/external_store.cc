@@ -32,12 +32,12 @@ std::string ExternalStores::ExtractStoreName(const std::string& endpoint) {
 
 void ExternalStores::RegisterStore(const std::string& store_name,
                                    ExternalStore* store) {
-  std::cerr << "Registering external store \"" << store_name << "\"";
+  std::cerr << "Registering external store \"" << store_name << "\"" << std::endl;
   Stores()->insert({ store_name, store });
 }
 
 ExternalStore *ExternalStores::DeregisterStore(const std::string &store_name) {
-  std::cerr << "Deregistering external store \"" << store_name << "\"";
+  std::cerr << "Deregistering external store \"" << store_name << "\"" << std::endl;
   auto it = Stores()->find(store_name);
   if (it == Stores()->end()) {
     return nullptr;
