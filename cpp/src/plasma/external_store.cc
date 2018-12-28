@@ -20,7 +20,7 @@
 
 namespace plasma {
 
-std::shared_ptr<std::map<std::string, ExternalStore*>> ExternalStores::external_stores_ = nullptr;
+std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> ExternalStores::external_stores_ = nullptr;
 
 std::string ExternalStores::ExtractStoreName(const std::string& endpoint) {
   size_t off = endpoint.find_first_of(':');
@@ -31,23 +31,23 @@ std::string ExternalStores::ExtractStoreName(const std::string& endpoint) {
 }
 
 void ExternalStores::RegisterStore(const std::string& store_name,
-                                   ExternalStore* store) {
+                                   std::shared_ptr<ExternalStore> store) {
   std::cerr << "Registering external store \"" << store_name << "\"" << std::endl;
   Stores()->insert({ store_name, store });
 }
 
-ExternalStore *ExternalStores::DeregisterStore(const std::string &store_name) {
+std::shared_ptr<ExternalStore> ExternalStores::DeregisterStore(const std::string &store_name) {
   std::cerr << "Deregistering external store \"" << store_name << "\"" << std::endl;
   auto it = Stores()->find(store_name);
   if (it == Stores()->end()) {
     return nullptr;
   }
-  ExternalStore* store = it->second;
+  std::shared_ptr<ExternalStore> store = it->second;
   Stores()->erase(it);
   return store;
 }
 
-ExternalStore* ExternalStores::GetStore(const std::string &store_name) {
+std::shared_ptr<ExternalStore> ExternalStores::GetStore(const std::string &store_name) {
   auto it = Stores()->find(store_name);
   if (it == Stores()->end()) {
     return nullptr;
@@ -55,9 +55,9 @@ ExternalStore* ExternalStores::GetStore(const std::string &store_name) {
   return it->second;
 }
 
-std::shared_ptr<std::map<std::string, ExternalStore *>> ExternalStores::Stores() {
+std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> ExternalStores::Stores() {
   if (external_stores_ == nullptr) {
-    external_stores_ = std::make_shared<std::map<std::string, ExternalStore *>>();
+    external_stores_ = std::make_shared<std::map<std::string, std::shared_ptr<ExternalStore>>>();
   }
   return external_stores_;
 }

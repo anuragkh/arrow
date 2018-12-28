@@ -94,36 +94,36 @@ class ExternalStores {
   /// @param store_name Name of the new external store.
   /// @param store The new external store object.
   static void RegisterStore(const std::string &store_name,
-                            ExternalStore *store);
+                            std::shared_ptr<ExternalStore> store);
 
   /// Register a new external store.
   ///
   /// @param store_name Name of the new external store.
-  static ExternalStore *DeregisterStore(const std::string &store_name);
+  static std::shared_ptr<ExternalStore> DeregisterStore(const std::string &store_name);
 
   /// Obtain the external store given its name.
   ///
   /// @param store_name Name of the external store.
   /// @return The external store object.
-  static ExternalStore *GetStore(const std::string &store_name);
+  static std::shared_ptr<ExternalStore> GetStore(const std::string &store_name);
 
  private:
   /// Obtain the mapping between external store names and external store instances
   /// @return The mapping between external store names and external store instances
-  static std::shared_ptr<std::map<std::string, ExternalStore *>> Stores();
+  static std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> Stores();
 
   /// Mapping between external store names and external store instances
-  static std::shared_ptr<std::map<std::string, ExternalStore *>> external_stores_;
+  static std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> external_stores_;
 };
 
 #define REGISTER_EXTERNAL_STORE(name, store)                                  \
   class store##Class {                                                        \
    public:                                                                    \
     store##Class() {                                                          \
-      ExternalStores::RegisterStore(name, new store());                       \
+      ExternalStores::RegisterStore(name, std::make_shared<store>());         \
     }                                                                         \
     ~store##Class() {                                                         \
-      ExternalStore* s = ExternalStores::DeregisterStore(name);               \
+      auto s = ExternalStores::DeregisterStore(name);                         \
       delete s;                                                               \
     }                                                                         \
   };                                                                          \
