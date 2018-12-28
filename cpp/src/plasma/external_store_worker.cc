@@ -2,7 +2,7 @@
 
 namespace plasma {
 
-ExternalStoreWorker::ExternalStoreWorker(ExternalStore *external_store,
+ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
                                          const std::string &store_socket)
     : external_store_(external_store),
       client_(nullptr),

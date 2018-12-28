@@ -71,7 +71,7 @@ class PlasmaStore {
   // TODO: PascalCase PlasmaStore methods.
   PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
               bool hugetlbfs_enabled, const std::string& socket_name,
-              ExternalStore* external_store = nullptr);
+              std::shared_ptr<ExternalStore> external_store = nullptr);
 
   ~PlasmaStore();
 

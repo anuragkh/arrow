@@ -115,7 +115,7 @@ Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 
 PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
                          bool hugepages_enabled, const std::string& socket_name,
-                         ExternalStore* external_store)
+                         std::shared_ptr<ExternalStore> external_store)
     : loop_(loop), eviction_policy_(&store_info_), external_store_worker_(external_store, socket_name) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
@@ -965,7 +965,7 @@ class PlasmaStoreRunner {
 
   void Start(char* socket_name, int64_t system_memory, std::string directory,
              bool hugepages_enabled, bool use_one_memory_mapped_file,
-             ExternalStore* external_store = nullptr) {
+             std::shared_ptr<ExternalStore> external_store = nullptr) {
     // Create the event loop.
     loop_.reset(new EventLoop);
     store_.reset(
@@ -1016,7 +1016,7 @@ void HandleSignal(int signal) {
 
 void StartServer(char* socket_name, int64_t system_memory, std::string plasma_directory,
                  bool hugepages_enabled, bool use_one_memory_mapped_file,
-                 ExternalStore* external_store = nullptr) {
+                 std::shared_ptr<ExternalStore> external_store = nullptr) {
   // Ignore SIGPIPE signals. If we don't do this, then when we attempt to write
   // to a client that has already died, the store could die.
   signal(SIGPIPE, SIG_IGN);
@@ -1117,7 +1117,7 @@ int main(int argc, char* argv[]) {
   }
 #endif
   // Get external store
-  plasma::ExternalStore *external_store = nullptr;
+  std::shared_ptr<plasma::ExternalStore> external_store{nullptr};
   if (!external_store_endpoint.empty()) {
     std::string name = plasma::ExternalStores::ExtractStoreName(external_store_endpoint);
     external_store = plasma::ExternalStores::GetStore(name);
