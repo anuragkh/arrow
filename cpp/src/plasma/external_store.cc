@@ -36,15 +36,14 @@ void ExternalStores::RegisterStore(const std::string& store_name,
   Stores()->insert({ store_name, store });
 }
 
-std::shared_ptr<ExternalStore> ExternalStores::DeregisterStore(const std::string &store_name) {
+void ExternalStores::DeregisterStore(const std::string &store_name) {
   std::cerr << "Deregistering external store \"" << store_name << "\"" << std::endl;
   auto it = Stores()->find(store_name);
   if (it == Stores()->end()) {
-    return nullptr;
+    return;
   }
   std::shared_ptr<ExternalStore> store = it->second;
   Stores()->erase(it);
-  return store;
 }
 
 std::shared_ptr<ExternalStore> ExternalStores::GetStore(const std::string &store_name) {
