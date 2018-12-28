@@ -99,7 +99,7 @@ class ExternalStores {
   /// Register a new external store.
   ///
   /// @param store_name Name of the new external store.
-  static std::shared_ptr<ExternalStore> DeregisterStore(const std::string &store_name);
+  static void DeregisterStore(const std::string &store_name);
 
   /// Obtain the external store given its name.
   ///
@@ -123,8 +123,7 @@ class ExternalStores {
       ExternalStores::RegisterStore(name, std::make_shared<store>());         \
     }                                                                         \
     ~store##Class() {                                                         \
-      auto s = ExternalStores::DeregisterStore(name);                         \
-      delete s;                                                               \
+      ExternalStores::DeregisterStore(name);                                  \
     }                                                                         \
   };                                                                          \
   store##Class singleton_##store = store##Class()
