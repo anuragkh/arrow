@@ -32,12 +32,12 @@ std::string ExternalStores::ExtractStoreName(const std::string& endpoint) {
 
 void ExternalStores::RegisterStore(const std::string& store_name,
                                    ExternalStore* store) {
-  ARROW_LOG(INFO) << "Registering external store \"" << store_name << "\"";
+  std::cerr << "Registering external store \"" << store_name << "\"";
   Stores()->insert({ store_name, store });
 }
 
 ExternalStore *ExternalStores::DeregisterStore(const std::string &store_name) {
-  ARROW_LOG(INFO) << "Deregistering external store \"" << store_name << "\"";
+  std::cerr << "Deregistering external store \"" << store_name << "\"";
   auto it = Stores()->find(store_name);
   if (it == Stores()->end()) {
     return nullptr;
@@ -60,34 +60,6 @@ std::shared_ptr<std::map<std::string, ExternalStore *>> ExternalStores::Stores()
     external_stores_ = std::make_shared<std::map<std::string, ExternalStore *>>();
   }
   return external_stores_;
-}
-
-std::string ExternalStore::SerializeValue(const std::string &object_data, const std::string &object_metadata) const {
-  std::stringstream ss;
-  int64_t data_size = object_data.size();
-  int64_t metadata_size = object_metadata.size();
-
-  ss.write(reinterpret_cast<const char*>(&data_size), sizeof(int64_t));
-  ss.write(reinterpret_cast<const char*>(&metadata_size), sizeof(int64_t));
-  ss.write(reinterpret_cast<const char*>(object_data.data()), data_size);
-  ss.write(reinterpret_cast<const char*>(object_metadata.data()), metadata_size);
-
-  return ss.str();
-}
-
-std::pair<std::string, std::string> ExternalStore::DeserializeValue(const std::string &binary) const {
-  std::stringstream ss(binary);
-  int64_t data_size, metadata_size;
-  std::string data, metadata;
-
-  ss.read(reinterpret_cast<char*>(&data_size), sizeof(int64_t));
-  ss.read(reinterpret_cast<char*>(&metadata_size), sizeof(int64_t));
-  data.resize(static_cast<size_t>(data_size));
-  metadata.resize(static_cast<size_t>(metadata_size));
-  ss.read(&data[0], data_size);
-  ss.read(&metadata[0], metadata_size);
-
-  return std::make_pair(data, metadata);
 }
 
 }
