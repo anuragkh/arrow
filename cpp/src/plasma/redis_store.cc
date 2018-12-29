@@ -65,7 +65,7 @@ Status RedisStore::Get(const std::vector<ObjectID> &object_ids,
 
   for (auto &fut: futures) {
     auto r = fut.get();
-    if (r.is_error()) {
+    if (r.is_error() || r.is_null()) {
       object_data->push_back("");
       object_metadata->push_back("");
     } else {
