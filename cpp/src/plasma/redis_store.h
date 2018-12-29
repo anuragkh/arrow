@@ -36,10 +36,6 @@ class RedisStore : public ExternalStore {
              std::vector<std::string> *object_data,
              std::vector<std::string> *object_metadata) override;
  private:
-  std::future<cpp_redis::reply> SendWrite(const std::string &object_id,
-                                          const std::string &data,
-                                          const std::string &metadata);
-  std::future<cpp_redis::reply> SendRead(const std::string &key);
 
   std::pair<std::string, std::string> ExtractEndpointElements(const std::string &endpoint);
 

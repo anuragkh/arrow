@@ -39,8 +39,10 @@ Status RedisStore::Put(const std::vector<ObjectID> &object_ids,
                        const std::vector<std::string> &object_metadata) {
   std::vector<std::future<cpp_redis::reply>> futures;
   for (size_t i = 0; i < object_ids.size(); ++i) {
-    futures.push_back(SendWrite(object_ids[i].binary(), object_data[i], object_metadata[i]));
+    futures.push_back(client_->set(object_ids[i].binary(), SerializeValue(object_data[i], object_metadata[i])));
   }
+
+  client_->commit();
 
   bool err = false;
   std::string err_msg;
@@ -60,8 +62,10 @@ Status RedisStore::Get(const std::vector<ObjectID> &object_ids,
   std::vector<std::future<cpp_redis::reply>> futures;
   futures.reserve(object_ids.size());
   for (const ObjectID &object_id: object_ids) {
-    futures.push_back(SendRead(object_id.binary()));
+    futures.push_back(client_->get(object_id.binary()));
   }
+
+  client_->commit();
 
   for (auto &fut: futures) {
     auto r = fut.get();
@@ -76,20 +80,6 @@ Status RedisStore::Get(const std::vector<ObjectID> &object_ids,
   }
 
   return Status::OK();
-}
-
-std::future<cpp_redis::reply> RedisStore::SendWrite(const std::string &object_id,
-                                                    const std::string &data,
-                                                    const std::string &metadata) {
-  auto fut = client_->set(object_id, SerializeValue(data, metadata));
-  client_->commit();
-  return fut;
-}
-
-std::future<cpp_redis::reply> RedisStore::SendRead(const std::string &key) {
-  auto fut = client_->get(key);
-  client_->commit();
-  return fut;
 }
 
 std::pair<std::string, std::string> RedisStore::ExtractEndpointElements(const std::string &endpoint) {
