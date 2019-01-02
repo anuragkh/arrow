@@ -17,6 +17,9 @@
 
 #include "redis_store.h"
 
+#define MAX_PIPELINE_COUNT 64
+#define MAX_PIPELINE_BYTES 67108864
+
 namespace plasma {
 
 Status RedisStore::Connect(const std::string &endpoint) {
@@ -38,8 +41,15 @@ Status RedisStore::Put(const std::vector<ObjectID> &object_ids,
                        const std::vector<std::string> &object_data,
                        const std::vector<std::string> &object_metadata) {
   std::vector<std::future<cpp_redis::reply>> futures;
+  size_t bytes = 0;
   for (size_t i = 0; i < object_ids.size(); ++i) {
-    futures.push_back(client_->set(object_ids[i].binary(), SerializeValue(object_data[i], object_metadata[i])));
+    auto value = SerializeValue(object_data[i], object_metadata[i]);
+    bytes += value.size();
+    futures.push_back(client_->set(object_ids[i].binary(), value));
+    if (i % MAX_PIPELINE_COUNT == 0 || bytes >= MAX_PIPELINE_BYTES) {
+      client_->commit();
+      bytes = 0;
+    }
   }
 
   client_->commit();
@@ -62,8 +72,12 @@ Status RedisStore::Get(const std::vector<ObjectID> &object_ids,
                        std::vector<std::string> *object_metadata) {
   std::vector<std::future<cpp_redis::reply>> futures;
   futures.reserve(object_ids.size());
+  size_t i = 0;
   for (const ObjectID &object_id: object_ids) {
     futures.push_back(client_->get(object_id.binary()));
+    if (i++ % MAX_PIPELINE_COUNT == 0) {
+      client_->commit();
+    }
   }
 
   client_->commit();
