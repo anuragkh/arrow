@@ -50,7 +50,8 @@ Status RedisStore::Put(const std::vector<ObjectID> &object_ids,
     auto r = fut.get();
     if (r.is_error()) {
       err = true;
-      err_msg = r.error();
+      err_msg += r.error() + "\n";
+      ARROW_LOG(DEBUG) << "Redis Put Error: " << r.error();
     }
   }
   return err ? Status::IOError(err_msg) : Status::OK();
@@ -72,6 +73,11 @@ Status RedisStore::Get(const std::vector<ObjectID> &object_ids,
     if (r.is_error() || r.is_null()) {
       object_data->push_back("");
       object_metadata->push_back("");
+      if (r.is_error()) {
+        ARROW_LOG(DEBUG) << "Redis Get Error: " << r.error();
+      } else {
+        ARROW_LOG(DEBUG) << "Redis Get NotFound";
+      }
     } else {
       auto value = DeserializeValue(r.as_string());
       object_data->push_back(value.first);
