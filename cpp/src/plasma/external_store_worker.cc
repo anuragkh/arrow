@@ -86,7 +86,10 @@ void ExternalStoreWorker::DoWork() {
     // Write back to plasma store
     for (size_t i = 0; i < object_ids.size(); ++i) {
       if (!data.at(i).empty()) {
-        ARROW_CHECK_OK(Client()->CreateAndSeal(object_ids.at(i), data.at(i), metadata.at(i)));
+        auto s = Client()->CreateAndSeal(object_ids.at(i), data.at(i), metadata.at(i));
+        if (s.IsPlasmaObjectExists()) {
+          ARROW_LOG(DEBUG) << "Unevicted object " << object_ids.at(i).hex() << " already exists in Plasma store";
+        }
       }
     }
   }
