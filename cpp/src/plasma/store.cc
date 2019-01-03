@@ -393,8 +393,9 @@ void PlasmaStore::TryUnevictObjects(const std::vector<ObjectID> &object_ids) {
   // If the object is not present locally, try fetching it from external store
   if (external_store_worker_.IsValid()) {
     for (const ObjectID &object_id : object_ids) {
-      ARROW_LOG(DEBUG) << "attempting to un-evict object " << object_id.hex() << " from external store";
-      external_store_worker_.EnqueueGet(object_id);
+      if (!GetObjectTableEntry(&store_info_, object_id)) {
+        external_store_worker_.EnqueueGet(object_id);
+      }
     }
   }
 }
