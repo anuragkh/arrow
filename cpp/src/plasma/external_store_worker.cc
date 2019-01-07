@@ -47,7 +47,7 @@ void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
     size_t n_enqueued = 0;
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
-      tasks_cleared_.wait(lock, [this] {
+      tasks_cv_.wait(lock, [this] {
         return object_ids_.size() < MAX_ENQUEUE;
       });
       object_ids_.push_back(object_id);
@@ -55,7 +55,7 @@ void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
       metadata_.push_back(metadata);
       n_enqueued = object_ids_.size();
     }
-    tasks_available_.notify_one();
+    tasks_cv_.notify_one();
     ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
   }
 }
@@ -75,7 +75,7 @@ void ExternalStoreWorker::Shutdown() {
     terminate_ = true;
   }
 
-  tasks_available_.notify_all();
+  tasks_cv_.notify_all();
   if (worker_thread_.joinable()) {
     worker_thread_.join();
   }
@@ -90,7 +90,7 @@ void ExternalStoreWorker::DoWork() {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
 
       // Wait for ObjectIds to become available
-      tasks_available_.wait(lock, [this] {
+      tasks_cv_.wait(lock, [this] {
         return !object_ids_.empty() || terminate_;
       });
 
@@ -111,10 +111,10 @@ void ExternalStoreWorker::DoWork() {
       // Create a copy of metadata to avoid blocking
       metadata = metadata_;
       metadata_.clear();
-
-      ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
     }
-    tasks_cleared_.notify_all();
+    tasks_cv_.notify_one();
+
+    ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
 
     // Write back to plasma store
     for (size_t i = 0; i < object_ids.size(); ++i) {

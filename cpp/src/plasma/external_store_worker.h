@@ -79,8 +79,7 @@ class ExternalStoreWorker {
 
   std::mutex tasks_mutex_;
   std::mutex store_mutex_;
-  std::condition_variable tasks_available_;
-  std::condition_variable tasks_cleared_;
+  std::condition_variable tasks_cv_;
   bool terminate_;
   bool stopped_;
 };
