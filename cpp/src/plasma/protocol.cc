@@ -90,6 +90,8 @@ Status PlasmaErrorStatus(fb::PlasmaError plasma_error) {
       return Status::PlasmaObjectNonexistent("object does not exist in the plasma store");
     case fb::PlasmaError::OutOfMemory:
       return Status::PlasmaStoreFull("object does not fit in the plasma store");
+    case fb::PlasmaError::TooManyRequests:
+      return Status::ExecutionError("too many requests, try again later");
     default:
       ARROW_LOG(FATAL) << "unknown plasma error code " << static_cast<int>(plasma_error);
   }

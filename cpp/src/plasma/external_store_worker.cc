@@ -53,7 +53,7 @@ Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
       if (object_ids_.size() > MAX_ENQUEUE) {
-        return Status::CapacityError("Cannot enqueue any more un-evict requests");
+        return Status::CapacityError("Cannot enqueue any more un-eCvict requests");
       }
       object_ids_.push_back(object_id);
       data_.push_back(data);
