@@ -500,25 +500,34 @@ Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes) {
 
 // Unevict messages.
 
-Status SendTryUnevictRequest(int sock, const std::vector<ObjectID>& object_ids) {
+Status SendTryUnevictRequest(int sock, const ObjectID &object_id) {
   flatbuffers::FlatBufferBuilder fbb;
-  auto message = fb::CreatePlasmaTryUnevictRequest(
-      fbb, static_cast<int32_t>(object_ids.size()),
-      ToFlatbuffer(&fbb, &object_ids[0], object_ids.size()));
+  auto message =
+      fb::CreatePlasmaTryUnevictRequest(fbb, fbb.CreateString(object_id.binary()));
   return PlasmaSend(sock, MessageType::PlasmaTryUnevictRequest, &fbb, message);
 }
 
-Status ReadTryUnevictRequest(uint8_t* data, size_t size, std::vector<ObjectID>* object_ids) {
-  using fb::PlasmaTryUnevictRequest;
-
+Status ReadTryUnevictRequest(uint8_t *data, size_t size, ObjectID *object_id) {
   DCHECK(data);
-  DCHECK(object_ids);
-  auto message = flatbuffers::GetRoot<PlasmaTryUnevictRequest>(data);
+  auto message = flatbuffers::GetRoot<fb::PlasmaTryUnevictRequest>(data);
   DCHECK(VerifyFlatbuffer(message, data, size));
-  ToVector(*message, object_ids, [](const PlasmaTryUnevictRequest& request, int i) {
-    return ObjectID::from_binary(request.object_ids()->Get(i)->str());
-  });
+  *object_id = ObjectID::from_binary(message->object_id()->str());
   return Status::OK();
+}
+
+Status SendTryUnevictReply(int sock, ObjectID object_id, PlasmaError error) {
+  flatbuffers::FlatBufferBuilder fbb;
+  auto message =
+      fb::CreatePlasmaTryUnevictReply(fbb, fbb.CreateString(object_id.binary()), error);
+  return PlasmaSend(sock, MessageType::PlasmaTryUnevictReply, &fbb, message);
+}
+
+Status ReadTryUnevictReply(uint8_t* data, size_t size, ObjectID* object_id) {
+  DCHECK(data);
+  auto message = flatbuffers::GetRoot<fb::PlasmaTryUnevictReply>(data);
+  DCHECK(VerifyFlatbuffer(message, data, size));
+  *object_id = ObjectID::from_binary(message->object_id()->str());
+  return PlasmaErrorStatus(message->error());
 }
 
 // Get messages.

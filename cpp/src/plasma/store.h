@@ -134,8 +134,8 @@ class PlasmaStore {
 
   /// Try to un-evict objects by fetching them from external store
   ///
-  /// @param object_ids Object Ids of the objects to be un-evicted.
-  void TryUnevictObjects(const std::vector<ObjectID> &object_ids);
+  /// @param object_id Object Ids of the objects to be un-evicted.
+  PlasmaError TryUnevict(const ObjectID &object_id);
 
   /// Process a get request from a client. This method assumes that we will
   /// eventually have these objects sealed. If one of the objects has not yet

@@ -151,7 +151,8 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   ASSERT_FALSE(has_object);
 
   // Try to manually unevict objects
-  client_.TryUnevict({object_ids.at(0), object_ids.at(1)});
+  ARROW_CHECK_OK(client_.TryUnevict(object_ids.at(0)));
+  ARROW_CHECK_OK(client_.TryUnevict(object_ids.at(1)));
 
   for (int i = 0; i < 2; i++) {
     // Try and access object from plasma store, without trying external store.
