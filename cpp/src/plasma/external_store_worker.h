@@ -37,7 +37,7 @@ class ExternalStoreWorker {
   /// store, it is automatically written back to the Plasma Store.
   ///
   /// \param object_id The object ID corresponding to the Get request.
-  void EnqueueGet(const ObjectID &object_id);
+  void GetAndWriteToPlasma(const ObjectID &object_id);
 
   /// Put an object in the external store.
   ///
@@ -67,6 +67,9 @@ class ExternalStoreWorker {
 
   std::thread worker_thread_;
   std::vector<ObjectID> object_ids_;
+  std::vector<std::string> data_;
+  std::vector<std::string> metadata_;
+
   std::mutex tasks_mutex_;
   std::mutex store_mutex_;
   std::condition_variable condition_;
