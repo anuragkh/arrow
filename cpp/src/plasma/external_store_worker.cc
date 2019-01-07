@@ -24,12 +24,25 @@ bool ExternalStoreWorker::IsValid() const {
   return external_store_ != nullptr;
 }
 
-void ExternalStoreWorker::EnqueueGet(const ObjectID &object_id) {
+void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
+  std::vector<std::string> data, metadata;
   {
-    std::unique_lock<std::mutex> lock(tasks_mutex_);
-    object_ids_.push_back(object_id);
+    std::unique_lock<std::mutex> lock(store_mutex_);
+    ARROW_CHECK_OK(external_store_->Get({object_id}, &data, &metadata));
   }
-  condition_.notify_one();
+
+  if (!data.back().empty()) {
+    size_t n_enqueued = 0;
+    {
+      std::unique_lock<std::mutex> lock(tasks_mutex_);
+      object_ids_.push_back(object_id);
+      data_.push_back(data.back());
+      metadata_.push_back(metadata.back());
+      n_enqueued = object_ids_.size();
+    }
+    condition_.notify_one();
+    ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
+  }
 }
 
 void ExternalStoreWorker::Put(const std::vector<ObjectID> &object_ids,
@@ -57,6 +70,7 @@ void ExternalStoreWorker::Shutdown() {
 void ExternalStoreWorker::DoWork() {
   while (true) {
     std::vector<ObjectID> object_ids;
+    std::vector<std::string> data, metadata;
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
 
@@ -74,22 +88,23 @@ void ExternalStoreWorker::DoWork() {
       // Create a copy of object IDs to avoid blocking
       object_ids = object_ids_;
       object_ids_.clear();
-    }
 
-    // Read from external store
-    std::vector<std::string> data, metadata;
-    {
-      std::unique_lock<std::mutex> lock(store_mutex_);
-      ARROW_CHECK_OK(external_store_->Get(object_ids, &data, &metadata));
+      // Create a copy of data to avoid blocking
+      data = data_;
+      data_.clear();
+
+      // Create a copy of metadata to avoid blocking
+      metadata = metadata_;
+      metadata_.clear();
+
+      ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
     }
 
     // Write back to plasma store
     for (size_t i = 0; i < object_ids.size(); ++i) {
-      if (!data.at(i).empty()) {
-        auto s = Client()->CreateAndSeal(object_ids.at(i), data.at(i), metadata.at(i));
-        if (s.IsPlasmaObjectExists()) {
-          ARROW_LOG(DEBUG) << "Unevicted object " << object_ids.at(i).hex() << " already exists in Plasma store";
-        }
+      auto s = Client()->CreateAndSeal(object_ids.at(i), data.at(i), metadata.at(i));
+      if (s.IsPlasmaObjectExists()) {
+        ARROW_LOG(DEBUG) << "Unevicted object " << object_ids.at(i).hex() << " already exists in Plasma store";
       }
     }
   }

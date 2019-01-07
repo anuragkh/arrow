@@ -394,7 +394,7 @@ void PlasmaStore::TryUnevictObjects(const std::vector<ObjectID> &object_ids) {
   if (external_store_worker_.IsValid()) {
     for (const ObjectID &object_id : object_ids) {
       if (!GetObjectTableEntry(&store_info_, object_id)) {
-        external_store_worker_.EnqueueGet(object_id);
+        external_store_worker_.GetAndWriteToPlasma(object_id);
       }
     }
   }
