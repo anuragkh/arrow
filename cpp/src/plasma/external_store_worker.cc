@@ -26,7 +26,7 @@ bool ExternalStoreWorker::IsValid() const {
   return external_store_ != nullptr;
 }
 
-void ExternalStoreWorker::Get(const ObjectID &object_id,
+Status ExternalStoreWorker::Get(const ObjectID &object_id,
                               std::string &object_data,
                               std::string &object_metadata) {
   std::vector<std::string> data, metadata;
@@ -37,19 +37,24 @@ void ExternalStoreWorker::Get(const ObjectID &object_id,
 
   object_data = data.back();
   object_metadata = metadata.back();
+
+  if (object_data.empty()) {
+    return Status::PlasmaObjectNonexistent(object_id.binary());
+  }
+  return Status::OK();
 }
 
-void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
+Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
   std::string data, metadata;
-  Get(object_id, data, metadata);
+  auto s = Get(object_id, data, metadata);
 
-  if (!data.empty()) {
+  if (!s.IsPlasmaObjectNonexistent()) {
     size_t n_enqueued = 0;
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
-      tasks_cv_.wait(lock, [this] {
-        return object_ids_.size() < MAX_ENQUEUE;
-      });
+      if (object_ids_.size() > MAX_ENQUEUE) {
+        return Status::CapacityError("Cannot enqueue any more un-evict requests");
+      }
       object_ids_.push_back(object_id);
       data_.push_back(data);
       metadata_.push_back(metadata);
@@ -58,15 +63,14 @@ void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
     tasks_cv_.notify_one();
     ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
   }
+  return Status::OK();
 }
 
-void ExternalStoreWorker::Put(const std::vector<ObjectID> &object_ids,
+Status ExternalStoreWorker::Put(const std::vector<ObjectID> &object_ids,
                               const std::vector<std::string> &object_data,
                               const std::vector<std::string> &object_metadata) {
-  {
-    std::unique_lock<std::mutex> lock(store_mutex_);
-    ARROW_CHECK_OK(external_store_->Put(object_ids, object_data, object_metadata));
-  }
+  std::unique_lock<std::mutex> lock(store_mutex_);
+  return external_store_->Put(object_ids, object_data, object_metadata);
 }
 
 void ExternalStoreWorker::Shutdown() {

@@ -990,7 +990,8 @@ class TestPlasmaClient(object):
         assert not client.contains(object_ids[1])
 
         # Try to manually unevict objects
-        client.try_unevict(object_ids[0:2])
+        client.try_unevict(object_ids[0])
+        client.try_unevict(object_ids[1])
 
         for i in range(0, 2):
             [result] = client.get_buffers([object_ids[i]])

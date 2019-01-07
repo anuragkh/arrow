@@ -389,15 +389,18 @@ void PlasmaStore::UpdateObjectGetRequests(const ObjectID& object_id) {
   }
 }
 
-void PlasmaStore::TryUnevictObjects(const std::vector<ObjectID> &object_ids) {
+PlasmaError PlasmaStore::TryUnevict(const ObjectID &object_id) {
   // If the object is not present locally, try fetching it from external store
-  if (external_store_worker_.IsValid()) {
-    for (const ObjectID &object_id : object_ids) {
-      if (!GetObjectTableEntry(&store_info_, object_id)) {
-        external_store_worker_.GetAndWriteToPlasma(object_id);
-      }
-    }
+  if (!external_store_worker_.IsValid()) {
+    return PlasmaError::ObjectNonexistent;
   }
+
+  if (GetObjectTableEntry(&store_info_, object_id)) {
+    return PlasmaError::ObjectExists;
+  }
+
+  auto s = external_store_worker_.GetAndWriteToPlasma(object_id);
+  return s.IsCapacityError() ? PlasmaError::TooManyRequests : PlasmaError::OK;
 }
 
 void PlasmaStore::ProcessGetRequest(Client *client,
@@ -421,7 +424,12 @@ void PlasmaStore::ProcessGetRequest(Client *client,
     } else {
       // If the object is not present locally, try fetching it from external store
       if (try_external_store && !entry) {
-        TryUnevictObjects({object_id});
+        auto e = TryUnevict(object_id);
+        if (e == PlasmaError::TooManyRequests) {
+          // TODO: handle this more gracefully
+          ARROW_LOG(WARNING) << "Could not un-evict object " << object_id.hex()
+                             << " since the un-eviction thread has too many pending requests";
+        }
       }
 
       // Add a placeholder plasma object to the get request to indicate that the
@@ -625,7 +633,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   }
 
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
-    external_store_worker_.Put(object_ids, object_data, object_metadata);
+    ARROW_CHECK_OK(external_store_worker_.Put(object_ids, object_data, object_metadata));
   }
 }
 
@@ -901,9 +909,10 @@ Status PlasmaStore::ProcessMessage(Client* client) {
       ReleaseObject(object_id, client);
     } break;
     case fb::MessageType::PlasmaTryUnevictRequest: {
-      std::vector<ObjectID> object_ids;
-      RETURN_NOT_OK(ReadTryUnevictRequest(input, input_size, &object_ids));
-      TryUnevictObjects(object_ids);
+      ObjectID object_id;
+      RETURN_NOT_OK(ReadTryUnevictRequest(input, input_size, &object_id));
+      auto e = TryUnevict(object_id);
+      HANDLE_SIGPIPE(SendTryUnevictReply(client->fd, object_id, e), client->fd);
     } break;
     case fb::MessageType::PlasmaDeleteRequest: {
       std::vector<ObjectID> object_ids;

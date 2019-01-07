@@ -117,7 +117,7 @@ cdef extern from "plasma/client.h" nogil:
 
         CStatus Evict(int64_t num_bytes, int64_t& num_bytes_evicted)
 
-        void TryUnevict(const c_vector[CUniqueID] object_ids)
+        CStatus TryUnevict(const CUniqueID& object_id)
 
         CStatus Hash(const CUniqueID& object_id, uint8_t* digest)
 
@@ -556,21 +556,17 @@ cdef class PlasmaClient:
         else:
             return self.get([object_ids], timeout_ms, try_external, serialization_context)[0]
 
-    def try_unevict(self, object_ids):
+    def try_unevict(self, ObjectID object_id):
         """
-        Delete the objects with the given IDs from other object store.
+        Un-evict the objects with the given IDs from external object store.
 
         Parameters
         ----------
-        object_ids : list
-            A list of strings used to identify the objects.
+        object_id : ObjectID
+            A string used to identify an object.
         """
-        cdef c_vector[CUniqueID] ids
-        cdef ObjectID object_id
-        for object_id in object_ids:
-            ids.push_back(object_id.data)
         with nogil:
-            self.client.get().TryUnevict(ids)
+            check_status(self.client.get().TryUnevict(object_id.data))
 
     def seal(self, ObjectID object_id):
         """

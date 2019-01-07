@@ -38,13 +38,15 @@ class ExternalStoreWorker {
   /// \param object_id The object ID corresponding to the Get request.
   /// \param[out] object_data The object data to get.
   /// \param[out] object_metadata The object metadata to get.
-  void Get(const ObjectID &object_id, std::string &object_data, std::string &object_metadata);
+  /// \return The return status.
+  Status Get(const ObjectID &object_id, std::string &object_data, std::string &object_metadata);
 
   /// Get request; once the object has been read from the external
   /// store, it is automatically written back to the Plasma Store.
   ///
   /// \param object_id The object ID corresponding to the Get request.
-  void GetAndWriteToPlasma(const ObjectID &object_id);
+  /// \return The return status.
+  Status GetAndWriteToPlasma(const ObjectID &object_id);
 
   /// Put an object in the external store.
   ///
@@ -52,7 +54,7 @@ class ExternalStoreWorker {
   /// \param object_data The object data to put.
   /// \param object_metadata The object metadata to put.
   /// \return The return status.
-  void Put(const std::vector<ObjectID> &object_ids,
+  Status Put(const std::vector<ObjectID> &object_ids,
            const std::vector<std::string> &object_data,
            const std::vector<std::string> &object_metadata);
 
