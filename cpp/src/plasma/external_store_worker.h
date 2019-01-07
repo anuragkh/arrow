@@ -33,7 +33,14 @@ class ExternalStoreWorker {
   /// \return True if the external store is valid, false otherwise.
   bool IsValid() const;
 
-  /// Enqueues a Get request; once the object has been read from the remote
+  /// Get an object from external store.
+  ///
+  /// \param object_id The object ID corresponding to the Get request.
+  /// \param[out] object_data The object data to get.
+  /// \param[out] object_metadata The object metadata to get.
+  void Get(const ObjectID &object_id, std::string &object_data, std::string &object_metadata);
+
+  /// Get request; once the object has been read from the external
   /// store, it is automatically written back to the Plasma Store.
   ///
   /// \param object_id The object ID corresponding to the Get request.
@@ -72,7 +79,8 @@ class ExternalStoreWorker {
 
   std::mutex tasks_mutex_;
   std::mutex store_mutex_;
-  std::condition_variable condition_;
+  std::condition_variable tasks_available_;
+  std::condition_variable tasks_cleared_;
   bool terminate_;
   bool stopped_;
 };

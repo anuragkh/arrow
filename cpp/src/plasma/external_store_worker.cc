@@ -1,5 +1,7 @@
 #include "external_store_worker.h"
 
+#define MAX_ENQUEUE 32
+
 namespace plasma {
 
 ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
@@ -24,23 +26,36 @@ bool ExternalStoreWorker::IsValid() const {
   return external_store_ != nullptr;
 }
 
-void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
+void ExternalStoreWorker::Get(const ObjectID &object_id,
+                              std::string &object_data,
+                              std::string &object_metadata) {
   std::vector<std::string> data, metadata;
   {
     std::unique_lock<std::mutex> lock(store_mutex_);
     ARROW_CHECK_OK(external_store_->Get({object_id}, &data, &metadata));
   }
 
-  if (!data.back().empty()) {
+  object_data = data.back();
+  object_metadata = metadata.back();
+}
+
+void ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
+  std::string data, metadata;
+  Get(object_id, data, metadata);
+
+  if (!data.empty()) {
     size_t n_enqueued = 0;
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
+      tasks_cleared_.wait(lock, [this] {
+        return object_ids_.size() < MAX_ENQUEUE;
+      });
       object_ids_.push_back(object_id);
-      data_.push_back(data.back());
-      metadata_.push_back(metadata.back());
+      data_.push_back(data);
+      metadata_.push_back(metadata);
       n_enqueued = object_ids_.size();
     }
-    condition_.notify_one();
+    tasks_available_.notify_one();
     ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
   }
 }
@@ -60,7 +75,7 @@ void ExternalStoreWorker::Shutdown() {
     terminate_ = true;
   }
 
-  condition_.notify_all();
+  tasks_available_.notify_all();
   if (worker_thread_.joinable()) {
     worker_thread_.join();
   }
@@ -75,7 +90,7 @@ void ExternalStoreWorker::DoWork() {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
 
       // Wait for ObjectIds to become available
-      condition_.wait(lock, [this] {
+      tasks_available_.wait(lock, [this] {
         return !object_ids_.empty() || terminate_;
       });
 
@@ -99,6 +114,7 @@ void ExternalStoreWorker::DoWork() {
 
       ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
     }
+    tasks_cleared_.notify_all();
 
     // Write back to plasma store
     for (size_t i = 0; i < object_ids.size(); ++i) {
