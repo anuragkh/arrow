@@ -1,6 +1,10 @@
 #include "external_store_worker.h"
+#include "arrow/util/memory.h"
 
 #define MAX_ENQUEUE 32
+#define MEMCPY_NUM_THREADS 4
+#define MEMCPY_BLOCK_SIZE 64
+#define OBJECT_SIZE_THRESHOLD (1024 * 1024)
 
 namespace plasma {
 
@@ -132,7 +136,15 @@ void ExternalStoreWorker::DoWork() {
         continue;
       }
       ARROW_CHECK_OK(std::move(s));
-      std::memcpy(object_data->mutable_data(), data.at(i).data(), static_cast<size_t>(data_size));
+      if (data_size > OBJECT_SIZE_THRESHOLD) {
+        arrow::internal::parallel_memcopy(object_data->mutable_data(),
+                                          reinterpret_cast<const uint8_t *>(data.at(i).data()),
+                                          data_size,
+                                          MEMCPY_BLOCK_SIZE,
+                                          MEMCPY_NUM_THREADS);
+      } else {
+        std::memcpy(object_data->mutable_data(), data.at(i).data(), static_cast<size_t>(data_size));
+      }
       ARROW_CHECK_OK(client->Seal(object_ids.at(i)));
       ARROW_CHECK_OK(client->Release(object_ids.at(i)));
     }
