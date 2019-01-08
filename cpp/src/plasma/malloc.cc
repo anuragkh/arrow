@@ -89,6 +89,7 @@ static ptrdiff_t pointer_distance(void const* pfrom, void const* pto) {
 // Create a buffer. This is creating a temporary file and then
 // immediately unlinking it so we do not leave traces in the system.
 int create_buffer(int64_t size) {
+  ARROW_LOG(INFO) << "Allocation size = " << size;
   int fd;
   std::string file_template = plasma::plasma_config->directory;
 #ifdef _WIN32
