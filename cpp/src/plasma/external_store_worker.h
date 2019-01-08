@@ -68,10 +68,10 @@ class ExternalStoreWorker {
   /// Returns a client to the plasma store, creating one if not already initialized.
   ///
   /// @return A client to the plasma store.
-  PlasmaClient *Client();
+  std::shared_ptr<PlasmaClient> Client();
 
   std::shared_ptr<ExternalStore> external_store_;
-  PlasmaClient *client_;
+  std::shared_ptr<PlasmaClient> client_;
   std::string store_socket_;
 
   std::thread worker_thread_;

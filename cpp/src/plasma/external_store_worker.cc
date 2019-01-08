@@ -119,29 +119,29 @@ void ExternalStoreWorker::DoWork() {
     tasks_cv_.notify_one();
 
     ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
-
+    auto client = Client();
     // Write back to plasma store
     for (size_t i = 0; i < object_ids.size(); ++i) {
       std::shared_ptr<Buffer> object_data;
       auto object_metadata = reinterpret_cast<const uint8_t*>(metadata.at(i).empty() ? nullptr : metadata.at(i).data());
       auto data_size = static_cast<int64_t>(data.at(i).size());
       auto metadata_size = static_cast<int64_t>(metadata.at(i).size());
-      auto s = Client()->Create(object_ids.at(i), data_size, object_metadata, metadata_size, &object_data);
+      auto s = client->Create(object_ids.at(i), data_size, object_metadata, metadata_size, &object_data);
       if (s.IsPlasmaObjectExists()) {
         ARROW_LOG(DEBUG) << "Unevicted object " << object_ids.at(i).hex() << " already exists in Plasma store";
         continue;
       }
       ARROW_CHECK_OK(std::move(s));
       std::memcpy(object_data->mutable_data(), data.at(i).data(), static_cast<size_t>(data_size));
-      ARROW_CHECK_OK(Client()->Seal(object_ids.at(i)));
-      ARROW_CHECK_OK(Client()->Release(object_ids.at(i)));
+      ARROW_CHECK_OK(client->Seal(object_ids.at(i)));
+      ARROW_CHECK_OK(client->Release(object_ids.at(i)));
     }
   }
 }
 
-PlasmaClient *ExternalStoreWorker::Client() {
+std::shared_ptr<PlasmaClient> ExternalStoreWorker::Client() {
   if (client_ == nullptr) {
-    client_ = new PlasmaClient();
+    client_ = std::make_shared<PlasmaClient>();
     ARROW_CHECK_OK(client_->Connect(store_socket_, ""));
   }
   return client_;
