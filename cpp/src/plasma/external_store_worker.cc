@@ -171,7 +171,7 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
     }
     ARROW_CHECK_OK(client->Seal(object_ids.at(i)));
     ARROW_CHECK_OK(client->Release(object_ids.at(i)));
-    num_objects_evicted_++;
+    num_objects_unevicted_++;
     num_bytes_unevicted_ += (data_size + metadata_size);
   }
 }
