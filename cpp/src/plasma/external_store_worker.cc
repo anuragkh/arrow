@@ -20,11 +20,11 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
     for (int i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
       external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
-    num_objects_evicted_ = 0;
-    num_bytes_evicted_ = 0;
-    num_objects_unevict_not_found_ = 0;
-    num_objects_unevicted_ = 0;
-    num_bytes_unevicted_ = 0;
+    num_writes_ = 0;
+    num_bytes_written_ = 0;
+    num_reads_not_found_ = 0;
+    num_reads_ = 0;
+    num_bytes_read_ = 0;
     worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
   }
 }
@@ -84,9 +84,9 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
     ARROW_CHECK_OK(fut.get());
   }
 
-  num_objects_evicted_ += num_objects;
+  num_writes_ += num_objects;
   for (size_t i = 0; i < object_ids.size(); ++i) {
-    num_bytes_evicted_ += (object_data.at(i).size() + object_metadata.at(i).size());
+    num_bytes_written_ += (object_data.at(i).size() + object_metadata.at(i).size());
   }
 }
 
@@ -106,11 +106,11 @@ void ExternalStoreWorker::Shutdown() {
 void ExternalStoreWorker::PrintStatistics() {
   // Print statistics
   ARROW_LOG(INFO) << "External Store Statistics: ";
-  ARROW_LOG(INFO) << "Number of objects evicted: " << num_objects_evicted_;
-  ARROW_LOG(INFO) << "Number of bytes evicted: " << num_bytes_evicted_;
-  ARROW_LOG(INFO) << "Number of objects un-evicted: " << num_objects_unevicted_;
-  ARROW_LOG(INFO) << "Number of bytes un-evicted: " << num_bytes_unevicted_;
-  ARROW_LOG(INFO) << "Number of objects attempted to un-evict, but not found: " << num_objects_unevict_not_found_;
+  ARROW_LOG(INFO) << "Number of objects written: " << num_writes_;
+  ARROW_LOG(INFO) << "Number of bytes written: " << num_bytes_written_;
+  ARROW_LOG(INFO) << "Number of objects read: " << num_reads_;
+  ARROW_LOG(INFO) << "Number of bytes read: " << num_bytes_read_;
+  ARROW_LOG(INFO) << "Number of objects attempted to read, but not found: " << num_reads_not_found_;
 }
 
 void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &object_ids) {
@@ -147,7 +147,7 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
   auto client = Client();
   for (size_t i = 0; i < object_ids.size(); ++i) {
     if (data.at(i).empty()) {
-      num_objects_unevict_not_found_++;
+      num_reads_not_found_++;
       continue;
     }
     std::shared_ptr<Buffer> object_data;
@@ -171,8 +171,8 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
     }
     ARROW_CHECK_OK(client->Seal(object_ids.at(i)));
     ARROW_CHECK_OK(client->Release(object_ids.at(i)));
-    num_objects_unevicted_++;
-    num_bytes_unevicted_ += (data_size + metadata_size);
+    num_reads_++;
+    num_bytes_read_ += (data_size + metadata_size);
   }
 }
 
