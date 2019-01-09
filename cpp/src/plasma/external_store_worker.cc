@@ -17,7 +17,7 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
       stopped_(false) {
   if (external_store) {
     valid_ = true;
-    for (int i = 0; i < parallelism_ + 1; ++i) { // One additional handle for puts
+    for (int i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
       external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
     num_objects_evicted_ = 0;
@@ -73,7 +73,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   for (int i = 0; i < num_chunks; ++i) {
     auto chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
     futures.push_back(pool->Submit(&ExternalStoreWorker::WriteChunkToExternalStore,
-                                   external_store_handles_[i],
+                                   external_store_handles_[parallelism_ + i],
                                    chunk_size_i,
                                    ids_ptr + i * chunk_size,
                                    data_ptr + i * chunk_size,
