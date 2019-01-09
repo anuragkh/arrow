@@ -17,8 +17,6 @@
 
 #include "s3_store.h"
 
-#include <string>
-
 #include <aws/s3/model/DeleteBucketRequest.h>
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/s3/model/HeadBucketRequest.h>
@@ -41,41 +39,62 @@ S3Store::~S3Store() {
   Aws::ShutdownAPI(options_);
 }
 
-Status S3Store::Connect(const std::string &endpoint) {
+std::shared_ptr<ExternalStoreHandle> S3Store::Connect(const std::string &endpoint) {
+  ARROW_LOG(INFO) << "Connecting to s3 bucket \"" << bucket_name_ << "\" with key-prefix \"" << key_prefix_ << "\"";
+
   ClientConfiguration config;
   auto path_elements = ExtractEndpointElements(endpoint);
-  bucket_name_ = path_elements.first;
-  key_prefix_ = path_elements.second;
-  client_ = Aws::MakeShared<S3Client>("S3Store", config);
-  ARROW_LOG(INFO) << "Connected to s3 bucket \"" << bucket_name_ << "\" with key-prefix \"" << key_prefix_ << "\"";
-  return Status::OK();
+  return std::make_shared<S3StoreHandle>(path_elements.first,
+                                         path_elements.second,
+                                         Aws::MakeShared<S3Client>("S3Store", config));
 }
 
-Status S3Store::Put(const std::vector<ObjectID> &object_ids,
-                    const std::vector<std::string> &object_data,
-                    const std::vector<std::string> &object_metadata) {
-  for (size_t i = 0; i < object_ids.size(); ++i) {
+S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
+                             const Aws::String &key_prefix,
+                             std::shared_ptr<Aws::S3::S3Client> client)
+    : bucket_name_(bucket), key_prefix_(key_prefix), client_(std::move(client)) {}
+
+Status S3StoreHandle::Put(const std::vector<ObjectID> &object_ids,
+                          const std::vector<std::string> &object_data,
+                          const std::vector<std::string> &object_metadata) {
+  return Put(object_ids.size(), &object_ids[0], &object_data[0], &object_metadata[0]);
+}
+
+Status S3StoreHandle::Get(const std::vector<ObjectID> &object_ids,
+                          std::vector<std::string> *object_data,
+                          std::vector<std::string> *object_metadata) {
+  object_data->resize(object_ids.size());
+  object_metadata->resize(object_ids.size());
+  return Get(object_ids.size(), &object_ids[0], &(*object_data)[0], &(*object_metadata)[0]);
+}
+
+Status S3StoreHandle::Put(size_t num_objects,
+                          const ObjectID *object_ids,
+                          const std::string *object_data,
+                          const std::string *object_metadata) {
+  for (size_t i = 0; i < num_objects; ++i) {
     auto outcome = client_->PutObject(MakePutRequest(object_ids[i], object_data[i], object_metadata[i]));
     ParsePutResponse(outcome);
   }
   return Status::OK();
 }
 
-Status S3Store::Get(const std::vector<ObjectID> &object_ids,
-                    std::vector<std::string> *object_data,
-                    std::vector<std::string> *object_metadata) {
-  for (const auto &object_id : object_ids) {
-    auto outcome  = client_->GetObject(MakeGetRequest(object_id));
+Status S3StoreHandle::Get(size_t num_objects,
+                          const ObjectID *object_ids,
+                          std::string *object_data,
+                          std::string *object_metadata) {
+  for (size_t i = 0; i < num_objects; ++i) {
+    auto outcome = client_->GetObject(MakeGetRequest(object_ids[i]));
     auto response = ParseGetResponse(outcome);
-    object_data->push_back(response.first);
-    object_metadata->push_back(response.second);
+    object_data[i] = response.first;
+    object_metadata[i] = response.second;
   }
   return Status::OK();
 }
 
-Aws::S3::Model::PutObjectRequest S3Store::MakePutRequest(const ObjectID &key,
-                                                         const std::string &object_data,
-                                                         const std::string &object_metadata) const {
+Aws::S3::Model::PutObjectRequest S3StoreHandle::MakePutRequest(const ObjectID &key,
+                                                               const std::string &object_data,
+                                                               const std::string &object_metadata) const {
   Aws::S3::Model::PutObjectRequest request;
   request.WithBucket(bucket_name_).WithKey(key_prefix_ + key.binary().data());
 
@@ -86,13 +105,13 @@ Aws::S3::Model::PutObjectRequest S3Store::MakePutRequest(const ObjectID &key,
   return request;
 }
 
-Aws::S3::Model::GetObjectRequest S3Store::MakeGetRequest(const ObjectID &key) const {
+Aws::S3::Model::GetObjectRequest S3StoreHandle::MakeGetRequest(const ObjectID &key) const {
   Aws::S3::Model::GetObjectRequest request;
   request.WithBucket(bucket_name_).WithKey(key_prefix_ + key.binary().data());
   return request;
 }
 
-std::pair<std::string, std::string> S3Store::ParseGetResponse(Aws::S3::Model::GetObjectOutcome &outcome) const {
+std::pair<std::string, std::string> S3StoreHandle::ParseGetResponse(Aws::S3::Model::GetObjectOutcome &outcome) const {
   if (!outcome.IsSuccess())
     throw std::runtime_error(outcome.GetError().GetMessage().c_str());
   auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
@@ -100,7 +119,7 @@ std::pair<std::string, std::string> S3Store::ParseGetResponse(Aws::S3::Model::Ge
   return DeserializeValue(binary);
 }
 
-void S3Store::ParsePutResponse(Aws::S3::Model::PutObjectOutcome &outcome) const {
+void S3StoreHandle::ParsePutResponse(Aws::S3::Model::PutObjectOutcome &outcome) const {
   if (!outcome.IsSuccess())
     throw std::runtime_error(outcome.GetError().GetMessage().c_str());
 }

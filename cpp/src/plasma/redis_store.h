@@ -24,22 +24,37 @@
 
 namespace plasma {
 
-class RedisStore : public ExternalStore {
+class RedisStoreHandle : public ExternalStoreHandle {
  public:
-  Status Connect(const std::string &endpoint) override;
+  explicit RedisStoreHandle(std::shared_ptr<cpp_redis::client> client);
 
   Status Put(const std::vector<ObjectID> &object_ids,
              const std::vector<std::string> &object_data,
              const std::vector<std::string> &object_metadata) override;
 
+  Status Put(size_t num_objects,
+             const ObjectID *object_ids,
+             const std::string *object_data,
+             const std::string *object_metadata) override;
+
   Status Get(const std::vector<ObjectID> &object_ids,
              std::vector<std::string> *object_data,
              std::vector<std::string> *object_metadata) override;
+
+  Status Get(size_t num_objects,
+             const ObjectID *object_ids,
+             std::string *object_data,
+             std::string *object_metadata) override;
  private:
-
-  std::pair<std::string, std::string> ExtractEndpointElements(const std::string &endpoint);
-
   std::shared_ptr<cpp_redis::client> client_;
+};
+
+class RedisStore : public ExternalStore {
+ public:
+  std::shared_ptr<ExternalStoreHandle> Connect(const std::string &endpoint) override;
+
+ private:
+  std::pair<std::string, std::string> ExtractEndpointElements(const std::string &endpoint);
 };
 
 }

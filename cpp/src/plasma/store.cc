@@ -115,8 +115,9 @@ Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 
 PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
                          bool hugepages_enabled, const std::string& socket_name,
-                         std::shared_ptr<ExternalStore> external_store)
-    : loop_(loop), eviction_policy_(&store_info_), external_store_worker_(external_store, socket_name) {
+                         std::shared_ptr<ExternalStore> external_store,
+                         const std::string& external_store_endpoint)
+    : loop_(loop), eviction_policy_(&store_info_), external_store_worker_(external_store, external_store_endpoint, socket_name) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;
@@ -633,7 +634,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   }
 
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
-    ARROW_CHECK_OK(external_store_worker_.Put(object_ids, object_data, object_metadata));
+    external_store_worker_.ParallelPut(object_ids, object_data, object_metadata);
   }
 }
 
@@ -975,11 +976,13 @@ class PlasmaStoreRunner {
 
   void Start(char* socket_name, int64_t system_memory, std::string directory,
              bool hugepages_enabled, bool use_one_memory_mapped_file,
-             std::shared_ptr<ExternalStore> external_store = nullptr) {
+             std::shared_ptr<ExternalStore> external_store,
+             const std::string& external_store_endpoint) {
     // Create the event loop.
     loop_.reset(new EventLoop);
     store_.reset(
-        new PlasmaStore(loop_.get(), system_memory, directory, hugepages_enabled, socket_name, external_store));
+        new PlasmaStore(loop_.get(), system_memory, directory, hugepages_enabled, socket_name,
+            external_store, external_store_endpoint));
     plasma_config = store_->GetPlasmaStoreInfo();
 
     // If the store is configured to use a single memory-mapped file, then we
@@ -1026,7 +1029,8 @@ void HandleSignal(int signal) {
 
 void StartServer(char* socket_name, int64_t system_memory, std::string plasma_directory,
                  bool hugepages_enabled, bool use_one_memory_mapped_file,
-                 std::shared_ptr<ExternalStore> external_store = nullptr) {
+                 std::shared_ptr<ExternalStore> external_store,
+                 const std::string& external_store_endpoint) {
   // Ignore SIGPIPE signals. If we don't do this, then when we attempt to write
   // to a client that has already died, the store could die.
   signal(SIGPIPE, SIG_IGN);
@@ -1034,7 +1038,7 @@ void StartServer(char* socket_name, int64_t system_memory, std::string plasma_di
   g_runner.reset(new PlasmaStoreRunner());
   signal(SIGTERM, HandleSignal);
   g_runner->Start(socket_name, system_memory, plasma_directory, hugepages_enabled,
-                  use_one_memory_mapped_file, external_store);
+                  use_one_memory_mapped_file, external_store, external_store_endpoint);
 }
 
 }  // namespace plasma
@@ -1134,9 +1138,6 @@ int main(int argc, char* argv[]) {
     if (external_store == nullptr) {
       ARROW_LOG(FATAL) << "No such external store \"" << name << "\"";
     }
-    ARROW_LOG(DEBUG) << "Connecting to external store " << name << " at endpoint " << external_store_endpoint;
-    auto s = external_store->Connect(external_store_endpoint);
-    ARROW_CHECK_OK(s);
   }
 
   // Make it so dlmalloc fails if we try to request more memory than is
@@ -1144,7 +1145,7 @@ int main(int argc, char* argv[]) {
   plasma::dlmalloc_set_footprint_limit((size_t)system_memory);
   ARROW_LOG(DEBUG) << "starting server listening on " << socket_name;
   plasma::StartServer(socket_name, system_memory, plasma_directory, hugepages_enabled,
-                      use_one_memory_mapped_file, external_store);
+                      use_one_memory_mapped_file, external_store, external_store_endpoint);
   plasma::g_runner->Shutdown();
   plasma::g_runner = nullptr;
 
