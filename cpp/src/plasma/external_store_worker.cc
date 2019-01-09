@@ -15,16 +15,16 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
       plasma_client_(nullptr),
       terminate_(false),
       stopped_(false) {
+  num_writes_ = 0;
+  num_bytes_written_ = 0;
+  num_reads_not_found_ = 0;
+  num_reads_ = 0;
+  num_bytes_read_ = 0;
   if (external_store) {
     valid_ = true;
     for (int i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
       external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
-    num_writes_ = 0;
-    num_bytes_written_ = 0;
-    num_reads_not_found_ = 0;
-    num_reads_ = 0;
-    num_bytes_read_ = 0;
     worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
   }
 }
