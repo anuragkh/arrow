@@ -28,13 +28,13 @@ class ExternalStoreWorker {
 
   static const int kDefaultParallelism = 8;
   static const size_t kPerThreadQueueSize = 32;
-  static const size_t kObjectSizeThreshold = 1024 * 1024;
+  static const int kObjectSizeThreshold = 1024 * 1024;
   static const size_t kMemcpyBlockSize = 64;
 
-  explicit ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                               const std::string &external_store_endpoint,
-                               const std::string &store_socket,
-                               int parallelism = kDefaultParallelism);
+  ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
+                      const std::string &external_store_endpoint,
+                      const std::string &store_socket,
+                      int parallelism = kDefaultParallelism);
 
   ~ExternalStoreWorker();
 
