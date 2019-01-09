@@ -18,6 +18,7 @@
 #ifndef HASH_TABLE_STORE_H
 #define HASH_TABLE_STORE_H
 
+#include <mutex>
 #include "external_store.h"
 
 namespace plasma {
