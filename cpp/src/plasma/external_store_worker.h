@@ -62,6 +62,9 @@ class ExternalStoreWorker {
   /// Shutdown the external store worker.
   void Shutdown();
 
+  /// Print statistics
+  void PrintStatistics();
+
  private:
   /// Contains the logic for the worker thread.
   void DoWork();
@@ -72,12 +75,16 @@ class ExternalStoreWorker {
   /// \return The return status.
   void ParallelGetAndWriteBack(const std::vector<ObjectID> &object_ids);
 
+  /// Write a chunk of objects to external store. To be used as a task
+  /// for a thread pool.
   static Status WriteChunkToExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
                                           size_t num_objects,
                                           const ObjectID *ids,
                                           const std::string *data,
                                           const std::string *metadata);
 
+  /// Read a chunk of objects from external store. To be used as a task
+  /// for a thread pool.
   static Status ReadChunkFromExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
                                            size_t num_objects,
                                            const ObjectID *ids,
@@ -104,6 +111,13 @@ class ExternalStoreWorker {
   std::condition_variable tasks_cv_;
   bool terminate_;
   bool stopped_;
+
+  // Eviction statistics
+  size_t num_objects_evicted_;
+  size_t num_bytes_evicted_;
+  size_t num_objects_unevict_not_found_;
+  size_t num_objects_unevicted_;
+  size_t num_bytes_unevicted_;
 };
 
 }
