@@ -22,11 +22,11 @@
 
 namespace plasma {
 
-class HashTableStore : public ExternalStore {
- public:
-  HashTableStore() noexcept = default;
+typedef std::unordered_map<ObjectID, std::pair<std::string, std::string>> hash_table_t;
 
-  Status Connect(const std::string &endpoint) override;
+class HashTableStoreHandle : public ExternalStoreHandle {
+ public:
+  HashTableStoreHandle(hash_table_t& table, std::mutex& mtx);
 
   Status Put(const std::vector<ObjectID> &object_ids,
              const std::vector<std::string> &object_data,
@@ -36,8 +36,28 @@ class HashTableStore : public ExternalStore {
              std::vector<std::string> *object_data,
              std::vector<std::string> *object_metadata) override;
 
+  Status Get(size_t num_objects,
+             const ObjectID *object_ids,
+             std::string *object_data,
+             std::string *object_metadata) override;
+  Status Put(size_t num_objects,
+             const ObjectID *object_ids,
+             const std::string *object_data,
+             const std::string *object_metadata) override;
+
  private:
-  std::unordered_map<ObjectID, std::pair<std::string, std::string>> table_;
+  hash_table_t& table_;
+  std::mutex& mtx_;
+};
+
+class HashTableStore : public ExternalStore {
+ public:
+  HashTableStore() noexcept = default;
+
+  std::shared_ptr<ExternalStoreHandle> Connect(const std::string &endpoint) override;
+ private:
+  hash_table_t table_;
+  std::mutex mtx_;
 };
 
 }

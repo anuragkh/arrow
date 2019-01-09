@@ -61,7 +61,7 @@ std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> ExternalS
   return external_stores_;
 }
 
-std::string ExternalStore::SerializeValue(const std::string &object_data, const std::string &object_metadata) const {
+std::string ExternalStoreHandle::SerializeValue(const std::string &object_data, const std::string &object_metadata) const {
   std::stringstream ss;
   auto data_size = static_cast<int64_t>(object_data.size());
   auto metadata_size = static_cast<int64_t>(object_metadata.size());
@@ -74,7 +74,7 @@ std::string ExternalStore::SerializeValue(const std::string &object_data, const 
   return ss.str();
 }
 
-std::pair<std::string, std::string> ExternalStore::DeserializeValue(const std::string &binary) const {
+std::pair<std::string, std::string> ExternalStoreHandle::DeserializeValue(const std::string &binary) const {
   std::stringstream ss(binary);
   int64_t data_size, metadata_size;
   std::string data, metadata;

@@ -19,30 +19,58 @@
 
 namespace plasma {
 
-Status HashTableStore::Connect(const std::string &endpoint) {
-  return Status::OK();
+std::shared_ptr<ExternalStoreHandle> HashTableStore::Connect(const std::string &endpoint) {
+  return std::make_shared<HashTableStoreHandle>(table_, mtx_);
 }
 
-Status HashTableStore::Put(const std::vector<ObjectID> &object_ids,
-                           const std::vector<std::string> &object_data,
-                           const std::vector<std::string> &object_metadata) {
-  for (size_t i = 0; i < object_ids.size(); ++i) {
-    table_[object_ids.at(i)] = std::make_pair(object_data.at(i), object_metadata.at(i));
+HashTableStoreHandle::HashTableStoreHandle(hash_table_t &table, std::mutex &mtx)
+    : table_(table), mtx_(mtx) {
+}
+
+Status HashTableStoreHandle::Put(const std::vector<ObjectID> &object_ids,
+                                 const std::vector<std::string> &object_data,
+                                 const std::vector<std::string> &object_metadata) {
+  return Put(object_ids.size(), &object_ids[0], &object_data[0], &object_metadata[0]);
+}
+
+
+Status HashTableStoreHandle::Put(size_t num_objects,
+                                 const ObjectID *object_ids,
+                                 const std::string *object_data,
+                                 const std::string *object_metadata) {
+  for (size_t i = 0; i < num_objects; ++i) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    table_[object_ids[i]] = std::make_pair(object_data[i], object_metadata[i]);
   }
   return Status::OK();
 }
 
-Status HashTableStore::Get(const std::vector<ObjectID> &object_ids,
-                           std::vector<std::string> *object_data,
-                           std::vector<std::string> *object_metadata) {
-  for (ObjectID object_id : object_ids) {
-    auto result = table_.find(object_id);
-    if (result != table_.end()) {
-      object_data->push_back(result->second.first);
-      object_metadata->push_back(result->second.second);
+Status HashTableStoreHandle::Get(const std::vector<ObjectID> &object_ids,
+                                 std::vector<std::string> *object_data,
+                                 std::vector<std::string> *object_metadata) {
+  object_data->resize(object_ids.size());
+  object_metadata->resize(object_ids.size());
+  return Get(object_ids.size(), &object_ids[0], &(*object_data)[0], &(*object_metadata)[0]);
+}
+
+Status HashTableStoreHandle::Get(size_t num_objects,
+                                 const ObjectID *object_ids,
+                                 std::string *object_data,
+                                 std::string *object_metadata) {
+  for (size_t i = 0; i < num_objects; ++i) {
+    bool valid;
+    hash_table_t::iterator result;
+    {
+      std::lock_guard<std::mutex> lock(mtx_);
+      result = table_.find(object_ids[i]);
+      valid = result != table_.end();
+    }
+    if (valid) {
+      object_data[i] = result->second.first;
+      object_metadata[i] = result->second.second;
     } else {
-      object_data->push_back("");
-      object_metadata->push_back("");
+      object_data[i].clear();
+      object_metadata[i].clear();
     }
   }
   return Status::OK();

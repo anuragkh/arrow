@@ -23,8 +23,18 @@ namespace plasma {
 
 class ExternalStoreWorker {
  public:
+  typedef std::vector<ObjectID> object_list;
+  typedef object_list::const_iterator object_iterator;
+
+  static const int kDefaultParallelism = 8;
+  static const size_t kPerThreadQueueSize = 32;
+  static const size_t kObjectSizeThreshold = 1024 * 1024;
+  static const size_t kMemcpyBlockSize = 64;
+
   explicit ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                               const std::string &store_socket);
+                               const std::string &external_store_endpoint,
+                               const std::string &store_socket,
+                               int parallelism = kDefaultParallelism);
 
   ~ExternalStoreWorker();
 
@@ -32,24 +42,6 @@ class ExternalStoreWorker {
   ///
   /// \return True if the external store is valid, false otherwise.
   bool IsValid() const;
-
-  /// Get an object from external store.
-  ///
-  /// \param object_id The object ID corresponding to the Get request.
-  /// \param[out] object_data The object data to get.
-  /// \param[out] object_metadata The object metadata to get.
-  /// \return The return status.
-  Status Get(const ObjectID &object_id, std::string &object_data, std::string &object_metadata);
-
-  /// Get objects from external store.
-  ///
-  /// \param object_ids The object IDs corresponding to the Get request.
-  /// \param[out] object_data The object data to get.
-  /// \param[out] object_metadata The object metadata to get.
-  /// \return The return status.
-  Status Get(const std::vector<ObjectID> &object_ids,
-             std::vector<std::string> *object_data,
-             std::vector<std::string> *object_metadata);
 
   /// Get request; once the object has been read from the external
   /// store, it is automatically written back to the Plasma Store.
@@ -63,10 +55,9 @@ class ExternalStoreWorker {
   /// \param object_ids The IDs of the objects to put.
   /// \param object_data The object data to put.
   /// \param object_metadata The object metadata to put.
-  /// \return The return status.
-  Status Put(const std::vector<ObjectID> &object_ids,
-           const std::vector<std::string> &object_data,
-           const std::vector<std::string> &object_metadata);
+  void ParallelPut(const std::vector<ObjectID> &object_ids,
+                   const std::vector<std::string> &object_data,
+                   const std::vector<std::string> &object_metadata);
 
   /// Shutdown the external store worker.
   void Shutdown();
@@ -75,20 +66,41 @@ class ExternalStoreWorker {
   /// Contains the logic for the worker thread.
   void DoWork();
 
+  /// Get objects from external store and writes it back to plasma store.
+  ///
+  /// \param object_ids The object IDs to get.
+  /// \return The return status.
+  void ParallelGetAndWriteBack(const std::vector<ObjectID> &object_ids);
+
+  static Status WriteChunkToExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
+                                          size_t num_objects,
+                                          const ObjectID *ids,
+                                          const std::string *data,
+                                          const std::string *metadata);
+
+  static Status ReadChunkFromExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
+                                           size_t num_objects,
+                                           const ObjectID *ids,
+                                           std::string *data,
+                                           std::string *metadata);
+
   /// Returns a client to the plasma store, creating one if not already initialized.
   ///
   /// @return A client to the plasma store.
   std::shared_ptr<PlasmaClient> Client();
 
-  std::shared_ptr<ExternalStore> external_store_;
-  std::shared_ptr<PlasmaClient> client_;
+  bool valid_;
+  int parallelism_;
+  size_t max_enqueue_;
+  std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
+
   std::string store_socket_;
+  std::shared_ptr<PlasmaClient> plasma_client_;
 
   std::thread worker_thread_;
   std::vector<ObjectID> object_ids_;
 
   std::mutex tasks_mutex_;
-  std::mutex store_mutex_;
   std::condition_variable tasks_cv_;
   bool terminate_;
   bool stopped_;
