@@ -113,11 +113,11 @@ class ExternalStoreWorker {
   bool stopped_;
 
   // Eviction statistics
-  size_t num_objects_evicted_;
-  size_t num_bytes_evicted_;
-  size_t num_objects_unevict_not_found_;
-  size_t num_objects_unevicted_;
-  size_t num_bytes_unevicted_;
+  size_t num_writes_;
+  size_t num_bytes_written_;
+  size_t num_reads_not_found_;
+  size_t num_reads_;
+  size_t num_bytes_read_;
 };
 
 }
