@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "external_store_worker.h"
 #include "arrow/util/memory.h"
 
@@ -10,7 +12,7 @@ namespace plasma {
 
 ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
                                          const std::string &store_socket)
-    : external_store_(external_store),
+    : external_store_(std::move(external_store)),
       client_(nullptr),
       store_socket_(store_socket),
       terminate_(false),
@@ -31,8 +33,8 @@ bool ExternalStoreWorker::IsValid() const {
 }
 
 Status ExternalStoreWorker::Get(const ObjectID &object_id,
-                              std::string &object_data,
-                              std::string &object_metadata) {
+                                std::string &object_data,
+                                std::string &object_metadata) {
   std::vector<std::string> data, metadata;
   {
     std::unique_lock<std::mutex> lock(store_mutex_);
@@ -48,31 +50,31 @@ Status ExternalStoreWorker::Get(const ObjectID &object_id,
   return Status::OK();
 }
 
-Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
-  std::string data, metadata;
-  auto s = Get(object_id, data, metadata);
+Status ExternalStoreWorker::Get(const std::vector<ObjectID> &object_ids,
+                                std::vector<std::string> *object_data,
+                                std::vector<std::string> *object_metadata) {
+  std::unique_lock<std::mutex> lock(store_mutex_);
+  return external_store_->Get(object_ids, object_data, object_metadata);
+}
 
-  if (!s.IsPlasmaObjectNonexistent()) {
-    size_t n_enqueued = 0;
-    {
-      std::unique_lock<std::mutex> lock(tasks_mutex_);
-      if (object_ids_.size() > MAX_ENQUEUE) {
-        return Status::CapacityError("Cannot enqueue any more un-eCvict requests");
-      }
-      object_ids_.push_back(object_id);
-      data_.push_back(data);
-      metadata_.push_back(metadata);
-      n_enqueued = object_ids_.size();
+Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
+  size_t n_enqueued = 0;
+  {
+    std::unique_lock<std::mutex> lock(tasks_mutex_);
+    if (object_ids_.size() > MAX_ENQUEUE) {
+      return Status::CapacityError("Too many un-evict requests");
     }
-    tasks_cv_.notify_one();
-    ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
+    object_ids_.push_back(object_id);
+    n_enqueued = object_ids_.size();
   }
+  tasks_cv_.notify_one();
+  ARROW_LOG(DEBUG) << "Enqueued " << n_enqueued << " requests";
   return Status::OK();
 }
 
 Status ExternalStoreWorker::Put(const std::vector<ObjectID> &object_ids,
-                              const std::vector<std::string> &object_data,
-                              const std::vector<std::string> &object_metadata) {
+                                const std::vector<std::string> &object_data,
+                                const std::vector<std::string> &object_metadata) {
   std::unique_lock<std::mutex> lock(store_mutex_);
   return external_store_->Put(object_ids, object_data, object_metadata);
 }
@@ -93,7 +95,6 @@ void ExternalStoreWorker::Shutdown() {
 void ExternalStoreWorker::DoWork() {
   while (true) {
     std::vector<ObjectID> object_ids;
-    std::vector<std::string> data, metadata;
     {
       std::unique_lock<std::mutex> lock(tasks_mutex_);
 
@@ -111,23 +112,22 @@ void ExternalStoreWorker::DoWork() {
       // Create a copy of object IDs to avoid blocking
       object_ids = object_ids_;
       object_ids_.clear();
-
-      // Create a copy of data to avoid blocking
-      data = data_;
-      data_.clear();
-
-      // Create a copy of metadata to avoid blocking
-      metadata = metadata_;
-      metadata_.clear();
     }
     tasks_cv_.notify_one();
 
     ARROW_LOG(DEBUG) << "Dequeued " << object_ids.size() << " requests";
-    auto client = Client();
+
+    std::vector<std::string> data, metadata;
+    ARROW_CHECK_OK(Get(object_ids, &data, &metadata));
+
     // Write back to plasma store
+    auto client = Client();
     for (size_t i = 0; i < object_ids.size(); ++i) {
+      if (data.at(i).empty()) {
+        continue;
+      }
       std::shared_ptr<Buffer> object_data;
-      auto object_metadata = reinterpret_cast<const uint8_t*>(metadata.at(i).empty() ? nullptr : metadata.at(i).data());
+      auto object_metadata = reinterpret_cast<const uint8_t *>(metadata.at(i).empty() ? nullptr : metadata.at(i).data());
       auto data_size = static_cast<int64_t>(data.at(i).size());
       auto metadata_size = static_cast<int64_t>(metadata.at(i).size());
       auto s = client->Create(object_ids.at(i), data_size, object_metadata, metadata_size, &object_data);

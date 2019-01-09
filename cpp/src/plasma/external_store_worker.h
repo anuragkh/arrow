@@ -41,6 +41,16 @@ class ExternalStoreWorker {
   /// \return The return status.
   Status Get(const ObjectID &object_id, std::string &object_data, std::string &object_metadata);
 
+  /// Get objects from external store.
+  ///
+  /// \param object_ids The object IDs corresponding to the Get request.
+  /// \param[out] object_data The object data to get.
+  /// \param[out] object_metadata The object metadata to get.
+  /// \return The return status.
+  Status Get(const std::vector<ObjectID> &object_ids,
+             std::vector<std::string> *object_data,
+             std::vector<std::string> *object_metadata);
+
   /// Get request; once the object has been read from the external
   /// store, it is automatically written back to the Plasma Store.
   ///
@@ -76,8 +86,6 @@ class ExternalStoreWorker {
 
   std::thread worker_thread_;
   std::vector<ObjectID> object_ids_;
-  std::vector<std::string> data_;
-  std::vector<std::string> metadata_;
 
   std::mutex tasks_mutex_;
   std::mutex store_mutex_;
