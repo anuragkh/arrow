@@ -40,11 +40,10 @@ S3Store::~S3Store() {
 }
 
 std::shared_ptr<ExternalStoreHandle> S3Store::Connect(const std::string &endpoint) {
-  ClientConfiguration config;
   auto path_elements = ExtractEndpointElements(endpoint);
   ARROW_LOG(INFO) << "Connecting to s3 bucket \"" << path_elements.first
                   << "\" with key-prefix \"" << path_elements.second << "\"";
-  auto client = Aws::MakeShared<S3Client>("S3Store", config);
+  auto client = Aws::MakeShared<S3Client>("S3Store");
   ARROW_LOG(INFO) << "Connected!";
   return std::make_shared<S3StoreHandle>(path_elements.first,
                                          path_elements.second,
