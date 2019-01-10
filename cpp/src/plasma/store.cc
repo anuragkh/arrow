@@ -118,7 +118,7 @@ PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string dir
                          std::shared_ptr<ExternalStore> external_store,
                          const std::string& external_store_endpoint)
     : loop_(loop), eviction_policy_(&store_info_),
-      external_store_worker_(external_store, external_store_endpoint, socket_name, 0, 0) {
+      external_store_worker_(external_store, external_store_endpoint, socket_name) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;
@@ -604,7 +604,6 @@ void PlasmaStore::DeleteObjects(const std::vector<ObjectID>& object_ids) {
 
 void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   std::vector<std::string> object_data;
-  std::vector<std::string> object_metadata;
   for (const auto& object_id : object_ids) {
     ARROW_LOG(DEBUG) << "evicting object " << object_id.hex();
     auto entry = GetObjectTableEntry(&store_info_, object_id);
@@ -621,9 +620,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
     // Read object data so that we can evict it to external store.
     if (external_store_worker_.IsValid()) {
       const char* data_ptr = reinterpret_cast<const char*>(entry->pointer);
-      const char* metadata_ptr = data_ptr + entry->data_size;
       object_data.emplace_back(data_ptr, static_cast<size_t>(entry->data_size));
-      object_metadata.emplace_back(metadata_ptr, static_cast<size_t>(entry->metadata_size));
     }
 
     store_info_.objects.erase(object_id);
@@ -635,7 +632,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   }
 
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
-    external_store_worker_.ParallelPut(object_ids, object_data, object_metadata);
+    external_store_worker_.ParallelPut(object_ids, object_data);
   }
 }
 
