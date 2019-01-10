@@ -50,10 +50,8 @@ std::shared_ptr<ExternalStoreHandle> S3Store::Connect(const std::string &endpoin
                                          path_elements.second);
 }
 
-S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
-                             const Aws::String &key_prefix,
-                             std::shared_ptr<Aws::S3::S3Client> client)
-    : bucket_name_(bucket), key_prefix_(key_prefix), client_(std::move(client)) {}
+S3StoreHandle::S3StoreHandle(const Aws::String &bucket, const Aws::String &key_prefix)
+    : bucket_name_(bucket), key_prefix_(key_prefix) {}
 
 Status S3StoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::string *data) {
   std::string err_msg;

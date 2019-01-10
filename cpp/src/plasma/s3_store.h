@@ -27,7 +27,7 @@ namespace plasma {
 
 class S3StoreHandle : public ExternalStoreHandle {
  public:
-  S3StoreHandle(const Aws::String& bucket, const Aws::String& key_prefix, std::shared_ptr<Aws::S3::S3Client> client);
+  S3StoreHandle(const Aws::String& bucket, const Aws::String& key_prefix);
 
   Status Put(size_t num_objects, const ObjectID *ids, const std::string *data) override;
   Status Get(size_t num_objects, const ObjectID *ids, std::string *data) override;
