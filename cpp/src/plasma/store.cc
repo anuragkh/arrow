@@ -117,7 +117,8 @@ PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string dir
                          bool hugepages_enabled, const std::string& socket_name,
                          std::shared_ptr<ExternalStore> external_store,
                          const std::string& external_store_endpoint)
-    : loop_(loop), eviction_policy_(&store_info_), external_store_worker_(external_store, external_store_endpoint, socket_name) {
+    : loop_(loop), eviction_policy_(&store_info_),
+      external_store_worker_(external_store, external_store_endpoint, socket_name, 0, 0) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;

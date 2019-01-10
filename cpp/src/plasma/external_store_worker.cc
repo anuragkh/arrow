@@ -8,9 +8,11 @@ namespace plasma {
 ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
                                          const std::string &external_store_endpoint,
                                          const std::string &store_socket,
-                                         int parallelism)
-    : parallelism_(parallelism),
-      max_enqueue_(parallelism * kPerThreadQueueSize),
+                                         int external_store_parallelism,
+                                         int memcpy_parallelism)
+    : external_store_parallelism_(external_store_parallelism),
+      memcpy_parallelism_(memcpy_parallelism),
+      max_enqueue_(external_store_parallelism * kPerThreadQueueSize),
       store_socket_(store_socket),
       plasma_client_(nullptr),
       terminate_(false),
@@ -22,7 +24,7 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
   num_bytes_read_ = 0;
   if (external_store) {
     valid_ = true;
-    for (int i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
+    for (int i = 0; i < external_store_parallelism_ * 2; ++i) { // x2 handles for puts
       external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
     worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
@@ -61,7 +63,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   auto pool = arrow::internal::GetCpuThreadPool();
 
   int num_objects = static_cast<int>(object_ids.size());
-  int num_chunks = std::min(parallelism_, num_objects);
+  int num_chunks = std::min(external_store_parallelism_, num_objects);
   int chunk_size = num_objects / num_chunks;
   int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
@@ -73,7 +75,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   for (int i = 0; i < num_chunks; ++i) {
     auto chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
     futures.push_back(pool->Submit(&ExternalStoreWorker::WriteChunkToExternalStore,
-                                   external_store_handles_[parallelism_ + i],
+                                   external_store_handles_[external_store_parallelism_ + i],
                                    chunk_size_i,
                                    ids_ptr + i * chunk_size,
                                    data_ptr + i * chunk_size,
@@ -128,7 +130,7 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
   metadata.resize(object_ids.size());
 
   int num_objects = static_cast<int>(object_ids.size());
-  int num_chunks = std::min(parallelism_, num_objects);
+  int num_chunks = std::min(external_store_parallelism_, num_objects);
   int chunk_size = num_objects / num_chunks;
   int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
@@ -173,7 +175,7 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
                                         reinterpret_cast<const uint8_t *>(data.at(i).data()),
                                         data_size,
                                         kMemcpyBlockSize,
-                                        parallelism_);
+                                        memcpy_parallelism_);
     } else {
       std::memcpy(object_data->mutable_data(), data.at(i).data(), static_cast<size_t>(data_size));
     }
