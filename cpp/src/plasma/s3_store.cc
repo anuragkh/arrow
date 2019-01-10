@@ -67,7 +67,7 @@ Status S3StoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::st
 
     auto outcome = client_->PutObject(request);
     if (!outcome.IsSuccess())
-      err_msg += outcome.GetError().GetMessage() + "\n";
+      err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
   }
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
