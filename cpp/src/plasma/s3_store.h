@@ -32,28 +32,10 @@ class S3StoreHandle : public ExternalStoreHandle {
  public:
   S3StoreHandle(const Aws::String& bucket, const Aws::String& key_prefix, std::shared_ptr<Aws::S3::S3Client> client);
 
-  Status Put(const std::vector<ObjectID> &object_ids,
-             const std::vector<std::string> &object_data,
-             const std::vector<std::string> &object_metadata) override;
-
-  Status Get(const std::vector<ObjectID> &object_ids,
-             std::vector<std::string> *object_data,
-             std::vector<std::string> *object_metadata) override;
-  Status Put(size_t num_objects,
-             const ObjectID *object_ids,
-             const std::string *object_data,
-             const std::string *object_metadata) override;
-  Status Get(size_t num_objects,
-             const ObjectID *object_ids,
-             std::string *object_data,
-             std::string *object_metadata) override;
+  Status Put(size_t num_objects, const ObjectID *ids, const std::string *data) override;
+  Status Get(size_t num_objects, const ObjectID *ids, std::string *data) override;
 
  private:
-  Aws::S3::Model::PutObjectRequest MakePutRequest(const ObjectID &key, const std::string &object_data,
-                                                  const std::string &object_metadata) const;
-  Aws::S3::Model::GetObjectRequest MakeGetRequest(const ObjectID &key) const;
-  std::pair<std::string, std::string> ParseGetResponse(Aws::S3::Model::GetObjectOutcome &outcome) const;
-  void ParsePutResponse(Aws::S3::Model::PutObjectOutcome &outcome) const;
 
   Aws::String bucket_name_;
   Aws::String key_prefix_;

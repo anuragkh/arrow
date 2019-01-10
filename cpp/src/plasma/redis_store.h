@@ -28,23 +28,9 @@ class RedisStoreHandle : public ExternalStoreHandle {
  public:
   explicit RedisStoreHandle(std::shared_ptr<cpp_redis::client> client);
 
-  Status Put(const std::vector<ObjectID> &object_ids,
-             const std::vector<std::string> &object_data,
-             const std::vector<std::string> &object_metadata) override;
+  Status Put(size_t num_objects, const ObjectID *ids, const std::string *data) override;
 
-  Status Put(size_t num_objects,
-             const ObjectID *object_ids,
-             const std::string *object_data,
-             const std::string *object_metadata) override;
-
-  Status Get(const std::vector<ObjectID> &object_ids,
-             std::vector<std::string> *object_data,
-             std::vector<std::string> *object_metadata) override;
-
-  Status Get(size_t num_objects,
-             const ObjectID *object_ids,
-             std::string *object_data,
-             std::string *object_metadata) override;
+  Status Get(size_t num_objects, const ObjectID *ids, std::string *data) override;
  private:
   std::shared_ptr<cpp_redis::client> client_;
 };

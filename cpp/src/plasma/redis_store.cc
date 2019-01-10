@@ -41,23 +41,13 @@ std::shared_ptr<ExternalStoreHandle> RedisStore::Connect(const std::string &endp
 
 RedisStoreHandle::RedisStoreHandle(std::shared_ptr<cpp_redis::client> client): client_(std::move(client)) {}
 
-Status RedisStoreHandle::Put(const std::vector<ObjectID> &object_ids,
-                             const std::vector<std::string> &object_data,
-                             const std::vector<std::string> &object_metadata) {
-  return Put(object_ids.size(), &object_ids[0], &object_data[0], &object_metadata[0]);
-}
-
-Status RedisStoreHandle::Put(size_t num_objects,
-                             const ObjectID *object_ids,
-                             const std::string *object_data,
-                             const std::string *object_metadata) {
+Status RedisStoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::string *data) {
   std::vector<std::future<cpp_redis::reply>> futures;
   futures.reserve(num_objects);
   size_t bytes = 0;
   for (size_t i = 0; i < num_objects; ++i) {
-    auto value = SerializeValue(object_data[i], object_metadata[i]);
-    bytes += value.size();
-    futures.push_back(client_->set(object_ids[i].binary(), value));
+    bytes += data[i].size();
+    futures.push_back(client_->set(ids[i].binary(), data[i]));
     if (i % MAX_PIPELINE_COUNT == 0 || bytes >= MAX_PIPELINE_BYTES) {
       client_->commit();
       bytes = 0;
@@ -79,22 +69,11 @@ Status RedisStoreHandle::Put(size_t num_objects,
   return err ? Status::IOError(err_msg) : Status::OK();
 }
 
-Status RedisStoreHandle::Get(const std::vector<ObjectID> &object_ids,
-                             std::vector<std::string> *object_data,
-                             std::vector<std::string> *object_metadata) {
-  object_data->resize(object_ids.size());
-  object_metadata->resize(object_ids.size());
-  return Get(object_ids.size(), &object_ids[0], &(*object_data)[0], &(*object_metadata)[0]);
-}
-
-Status RedisStoreHandle::Get(size_t num_objects,
-                             const ObjectID *object_ids,
-                             std::string *object_data,
-                             std::string *object_metadata) {
+Status RedisStoreHandle::Get(size_t num_objects, const ObjectID *ids, std::string *data) {
   std::vector<std::future<cpp_redis::reply>> futures;
   futures.reserve(num_objects);
   for (size_t i = 0; i < num_objects; ++i) {
-    futures.push_back(client_->get(object_ids[i].binary()));
+    futures.push_back(client_->get(ids[i].binary()));
     if (i % MAX_PIPELINE_COUNT == 0) {
       client_->commit();
     }
@@ -105,17 +84,13 @@ Status RedisStoreHandle::Get(size_t num_objects,
   for (size_t i = 0; i < num_objects; ++i) {
     auto r = futures[i].get();
     if (r.is_error() || r.is_null()) {
-      object_data[i].clear();
-      object_metadata[i].clear();
       if (r.is_error()) {
         ARROW_LOG(DEBUG) << "Redis Get Error: " << r.error();
       } else {
         ARROW_LOG(DEBUG) << "Redis Get NotFound";
       }
     } else {
-      auto value = DeserializeValue(r.as_string());
-      object_data[i] = value.first;
-      object_metadata[i] = value.second;
+      data[i] = r.as_string();
     }
   }
 
