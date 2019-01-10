@@ -127,9 +127,158 @@ endif()
 
 list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store_worker.cc" "external_store.cc" "hash_table_store.cc")
 if (ARROW_PLASMA_S3)
-  find_package(AWSSDK REQUIRED COMPONENTS s3)
+  set(ZLIB_VERSION "1.2.11")
+  set(OPENSSL_VERSION "1.1.1-pre7")
+  set(CURL_VERSION "7.60.0")
+  set(AWSSDK_VERSION "1.4.26")
+
+  set(ZLIB_CXX_FLAGS "${EXTERNAL_CXX_FLAGS}")
+  set(ZLIB_C_FLAGS "${EXTERNAL_C_FLAGS}")
+  set(ZLIB_PREFIX "${PROJECT_BINARY_DIR}/external/zlib")
+  set(ZLIB_INCLUDE_DIR "${ZLIB_PREFIX}/include")
+  set(ZLIB_CMAKE_ARGS "-Wno-dev"
+          "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+          "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+          "-DCMAKE_CXX_FLAGS=${ZLIB_CXX_FLAGS}"
+          "-DCMAKE_C_FLAGS=${ZLIB_C_FLAGS}"
+          "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+          "-DCMAKE_INSTALL_PREFIX=${ZLIB_PREFIX}"
+          "-DBUILD_SHARED_LIBS=OFF")
+
+  set(ZLIB_STATIC_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}z")
+  set(ZLIB_LIBRARY "${ZLIB_PREFIX}/lib/${ZLIB_STATIC_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  ExternalProject_Add(zlib
+          URL http://zlib.net/zlib-${ZLIB_VERSION}.tar.gz
+          CMAKE_ARGS ${ZLIB_CMAKE_ARGS}
+          LOG_DOWNLOAD ON
+          LOG_CONFIGURE ON
+          LOG_BUILD ON
+          LOG_INSTALL ON)
+
+  include_directories(SYSTEM ${ZLIB_INCLUDE_DIR})
+  message(STATUS "ZLib include dir: ${ZLIB_INCLUDE_DIR}")
+  message(STATUS "ZLib static library: ${ZLIB_LIBRARY}")
+
+  install(FILES ${ZLIB_LIBRARY} DESTINATION lib)
+  install(DIRECTORY ${ZLIB_INCLUDE_DIR}/ DESTINATION include)
+
+  set(OPENSSL_CXX_FLAGS "${EXTERNAL_CXX_FLAGS}")
+  set(OPENSSL_C_FLAGS "${EXTERNAL_C_FLAGS}")
+  set(OPENSSL_PREFIX "${PROJECT_BINARY_DIR}/external/openssl")
+  set(OPENSSL_INCLUDE_DIR "${OPENSSL_PREFIX}/include")
+  set(OPENSSL_STATIC_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}ssl")
+  set(CRYPTO_STATIC_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}crypto")
+  set(OPENSSL_LIBRARIES "${OPENSSL_PREFIX}/lib/${OPENSSL_STATIC_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+          "${OPENSSL_PREFIX}/lib/${CRYPTO_STATIC_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  ExternalProject_Add(openssl
+          DEPENDS zlib
+          URL https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
+          BUILD_IN_SOURCE 1
+          CONFIGURE_COMMAND ./config -fPIC --prefix=${OPENSSL_PREFIX} --with-zlib-include=${ZLIB_INCLUDE_DIR} --with-zlib-lib=${ZLIB_PREFIX}/lib no-shared no-tests CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER}
+          BUILD_COMMAND "$(MAKE)"
+          INSTALL_COMMAND "$(MAKE)" install
+          LOG_DOWNLOAD ON
+          LOG_CONFIGURE ON
+          LOG_BUILD ON
+          LOG_INSTALL ON)
+
+  include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
+  message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+  message(STATUS "OpenSSL static libraries: ${OPENSSL_LIBRARIES}")
+
+  install(FILES ${OPENSSL_LIBRARIES} DESTINATION lib)
+  install(DIRECTORY ${OPENSSL_INCLUDE_DIR}/openssl DESTINATION include)
+
+  set(CURL_CXX_FLAGS "${EXTERNAL_CXX_FLAGS}")
+  set(CURL_C_FLAGS "${EXTERNAL_C_FLAGS}")
+  set(CURL_PREFIX "${PROJECT_BINARY_DIR}/external/curl")
+  set(CURL_HOME "${CURL_PREFIX}")
+  set(CURL_INCLUDE_DIR "${CURL_PREFIX}/include")
+  set(CURL_PREFIX_PATH "${ZLIB_PREFIX}|${OPENSSL_PREFIX}")
+  set(CURL_CMAKE_ARGS "-Wno-dev"
+          "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+          "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+          "-DCMAKE_CXX_FLAGS=${CURL_CXX_FLAGS}"
+          "-DCMAKE_C_FLAGS=${CURL_C_FLAGS}"
+          "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+          "-DCMAKE_INSTALL_PREFIX=${CURL_PREFIX}"
+          "-DCMAKE_PREFIX_PATH=${CURL_PREFIX_PATH}"
+          "-DCURL_STATICLIB=ON"
+          "-DBUILD_CURL_EXE=OFF"
+          "-DBUILD_TESTING=OFF"
+          "-DENABLE_MANUAL=OFF"
+          "-DHTTP_ONLY=ON"
+          "-DCURL_CA_PATH=none"
+          "-DZLIB_LIBRARY=${ZLIB_LIBRARY}") # Force usage of static library
+
+  set(CURL_STATIC_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}curl")
+  set(CURL_LIBRARY "${CURL_PREFIX}/lib/${CURL_STATIC_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  string(REGEX REPLACE "\\." "_" CURL_VERSION_STR ${CURL_VERSION})
+  ExternalProject_Add(curl
+          DEPENDS zlib openssl
+          URL https://github.com/curl/curl/releases/download/curl-${CURL_VERSION_STR}/curl-${CURL_VERSION}.tar.gz
+          LIST_SEPARATOR |
+          CMAKE_ARGS ${CURL_CMAKE_ARGS}
+          LOG_DOWNLOAD ON
+          LOG_CONFIGURE ON
+          LOG_BUILD ON
+          LOG_INSTALL ON)
+
+  include_directories(SYSTEM ${CURL_INCLUDE_DIR})
+  message(STATUS "Curl include dir: ${CURL_INCLUDE_DIR}")
+  message(STATUS "Curl static library: ${CURL_LIBRARY}")
+
+  install(FILES ${CURL_LIBRARY} DESTINATION lib)
+  install(DIRECTORY ${CURL_INCLUDE_DIR}/curl DESTINATION include)
+
+  set(AWS_CXX_FLAGS "${EXTERNAL_CXX_FLAGS}")
+  set(AWS_C_FLAGS "${EXTERNAL_C_FLAGS}")
+  set(AWS_PREFIX "${PROJECT_BINARY_DIR}/external/aws")
+  set(AWS_HOME "${AWS_PREFIX}")
+  set(AWS_BUILD_PROJECTS "s3")
+  set(AWS_INCLUDE_DIR "${AWS_PREFIX}/include")
+  set(AWS_PREFIX_PATH "${ZLIB_PREFIX}|${OPENSSL_PREFIX}|${CURL_PREFIX}")
+  set(AWS_CMAKE_ARGS "-Wno-dev"
+          "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+          "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+          "-DCMAKE_CXX_FLAGS=${AWS_CXX_FLAGS}"
+          "-DCMAKE_C_FLAGS=${AWS_C_FLAGS}"
+          "-DCMAKE_INSTALL_LIBDIR=lib"
+          "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+          "-DBUILD_ONLY=${AWS_BUILD_PROJECTS}"
+          "-DCMAKE_INSTALL_PREFIX=${AWS_PREFIX}"
+          "-DENABLE_TESTING=OFF"
+          "-DBUILD_SHARED_LIBS=OFF"
+          "-DCMAKE_PREFIX_PATH=${AWS_PREFIX_PATH}"
+          "-DZLIB_LIBRARY=${ZLIB_LIBRARY}") # Force usage of static library
+
+  set(AWS_STATIC_CORE_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}aws-cpp-sdk-core")
+  set(AWS_STATIC_S3_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}aws-cpp-sdk-s3")
+  set(AWS_LIBRARIES "${AWS_PREFIX}/lib/${AWS_STATIC_S3_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+          "${AWS_PREFIX}/lib/${AWS_STATIC_CORE_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+  ExternalProject_Add(awssdk
+          DEPENDS curl openssl zlib
+          GIT_REPOSITORY "https://github.com/awslabs/aws-sdk-cpp.git"
+          GIT_TAG "${AWSSDK_VERSION}"
+          GIT_SHALLOW 1
+          BUILD_IN_SOURCE true
+          LIST_SEPARATOR |
+          CMAKE_ARGS ${AWS_CMAKE_ARGS}
+          LOG_DOWNLOAD ON
+          LOG_CONFIGURE ON
+          LOG_BUILD ON
+          LOG_INSTALL ON)
+
+  include_directories(SYSTEM ${AWS_INCLUDE_DIR})
+  message(STATUS "AWS include dir: ${AWS_INCLUDE_DIR}")
+  message(STATUS "AWS static libraries: ${AWS_LIBRARIES}")
+
+  install(FILES ${AWS_LIBRARIES} DESTINATION lib)
+  install(DIRECTORY ${AWS_INCLUDE_DIR}/aws DESTINATION include)
+
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "s3_store.cc")
-  list(APPEND PLASMA_EXTERNAL_STORE_LIBS ${AWSSDK_LINK_LIBRARIES})
+  list(APPEND PLASMA_EXTERNAL_STORE_LIBS ${AWS_LIBRARIES})
 endif ()
 
 if (ARROW_PLASMA_REDIS)
