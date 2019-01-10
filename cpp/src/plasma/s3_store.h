@@ -36,7 +36,6 @@ class S3StoreHandle : public ExternalStoreHandle {
   Status Get(size_t num_objects, const ObjectID *ids, std::string *data) override;
 
  private:
-
   Aws::String bucket_name_;
   Aws::String key_prefix_;
   std::shared_ptr<Aws::S3::S3Client> client_;
@@ -52,9 +51,6 @@ class S3Store : public ExternalStore {
  private:
   std::pair<Aws::String, Aws::String> ExtractEndpointElements(const std::string &s3_endpoint);
 
-  Aws::String bucket_name_;
-  Aws::String key_prefix_;
-  std::shared_ptr<Aws::S3::S3Client> client_;
   Aws::SDKOptions options_;
 };
 
