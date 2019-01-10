@@ -26,15 +26,17 @@ class ExternalStoreWorker {
   typedef std::vector<ObjectID> object_list;
   typedef object_list::const_iterator object_iterator;
 
-  static const int kDefaultParallelism = 8;
+  static const int kDefaultExternalStoreParallelism = 1;
+  static const int kDefaultMemcpyParallelism = 4;
   static const size_t kPerThreadQueueSize = 32;
   static const int kObjectSizeThreshold = 1024 * 1024;
   static const size_t kMemcpyBlockSize = 64;
 
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                      const std::string &external_store_endpoint,
-                      const std::string &store_socket,
-                      int parallelism = kDefaultParallelism);
+                        const std::string &external_store_endpoint,
+                        const std::string &store_socket,
+                        int external_store_parallelism = kDefaultExternalStoreParallelism,
+                        int memcpy_parallelism = kDefaultMemcpyParallelism);
 
   ~ExternalStoreWorker();
 
@@ -100,7 +102,8 @@ class ExternalStoreWorker {
   std::shared_ptr<PlasmaClient> Client();
 
   bool valid_;
-  int parallelism_;
+  int external_store_parallelism_;
+  int memcpy_parallelism_;
   size_t max_enqueue_;
   std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
