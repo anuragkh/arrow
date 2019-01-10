@@ -60,6 +60,8 @@
 #include "plasma/malloc.h"
 #include "store.h"
 
+#include <aws/core/Aws.h>
+
 #ifdef PLASMA_CUDA
 #include "arrow/gpu/cuda_api.h"
 
@@ -1042,6 +1044,8 @@ void StartServer(char* socket_name, int64_t system_memory, std::string plasma_di
 }  // namespace plasma
 
 int main(int argc, char* argv[]) {
+  Aws::SDKOptions options;
+  Aws::InitAPI(options);
   ArrowLog::StartArrowLog(argv[0], ArrowLogLevel::ARROW_INFO);
   ArrowLog::InstallFailureSignalHandler();
   char* socket_name = nullptr;
@@ -1148,5 +1152,6 @@ int main(int argc, char* argv[]) {
   plasma::g_runner = nullptr;
 
   ArrowLog::ShutDownArrowLog();
+  Aws::ShutdownAPI(options);
   return 0;
 }

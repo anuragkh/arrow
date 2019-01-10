@@ -34,14 +34,6 @@ using namespace Aws::Client;
 using namespace Aws::S3;
 using namespace Aws::S3::Model;
 
-S3Store::S3Store() {
-  Aws::InitAPI(options_);
-}
-
-S3Store::~S3Store() {
-  Aws::ShutdownAPI(options_);
-}
-
 std::shared_ptr<ExternalStoreHandle> S3Store::Connect(const std::string &endpoint) {
   auto path_elements = ExtractEndpointElements(endpoint);
   ARROW_LOG(INFO) << "Connecting to s3 bucket \"" << path_elements.first
