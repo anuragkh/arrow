@@ -21,22 +21,17 @@ namespace plasma {
 // thread. All Put requests are serviced by the calling thread directly.
 // The worker interface ensures thread-safe access to the external store.
 
+#define READ_WRITE_PARALLELISM  1
+#define MEMCPY_PARALLELISM      4
+#define PER_THREAD_QUEUE_SIZE   32
+#define OBJECT_SIZE_THRESHOLD   (1024 * 1024)
+#define MEMCPY_BLOCK_SIZE       64
+
 class ExternalStoreWorker {
  public:
-  typedef std::vector<ObjectID> object_list;
-  typedef object_list::const_iterator object_iterator;
-
-  static const int kDefaultExternalStoreParallelism = 1;
-  static const int kDefaultMemcpyParallelism = 4;
-  static const size_t kPerThreadQueueSize = 32;
-  static const int kObjectSizeThreshold = 1024 * 1024;
-  static const size_t kMemcpyBlockSize = 64;
-
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                        const std::string &external_store_endpoint,
-                        const std::string &store_socket,
-                        int external_store_parallelism = kDefaultExternalStoreParallelism,
-                        int memcpy_parallelism = kDefaultMemcpyParallelism);
+                      const std::string &external_store_endpoint,
+                      const std::string &store_socket);
 
   ~ExternalStoreWorker();
 
@@ -58,8 +53,7 @@ class ExternalStoreWorker {
   /// \param object_data The object data to put.
   /// \param object_metadata The object metadata to put.
   void ParallelPut(const std::vector<ObjectID> &object_ids,
-                   const std::vector<std::string> &object_data,
-                   const std::vector<std::string> &object_metadata);
+                   const std::vector<std::string> &object_data);
 
   /// Shutdown the external store worker.
   void Shutdown();
@@ -85,16 +79,14 @@ class ExternalStoreWorker {
   static Status WriteChunkToExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
                                           size_t num_objects,
                                           const ObjectID *ids,
-                                          const std::string *data,
-                                          const std::string *metadata);
+                                          const std::string *data);
 
   /// Read a chunk of objects from external store. To be used as a task
   /// for a thread pool.
   static Status ReadChunkFromExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
                                            size_t num_objects,
                                            const ObjectID *ids,
-                                           std::string *data,
-                                           std::string *metadata);
+                                           std::string *data);
 
   /// Returns a client to the plasma store, creating one if not already initialized.
   ///
@@ -102,9 +94,6 @@ class ExternalStoreWorker {
   std::shared_ptr<PlasmaClient> Client();
 
   bool valid_;
-  int external_store_parallelism_;
-  int memcpy_parallelism_;
-  size_t max_enqueue_;
   std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
   std::string store_socket_;
