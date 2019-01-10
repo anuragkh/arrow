@@ -255,8 +255,8 @@ if (ARROW_PLASMA_S3)
 
   set(AWS_STATIC_CORE_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}aws-cpp-sdk-core")
   set(AWS_STATIC_S3_LIB_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}aws-cpp-sdk-s3")
-  set(AWS_LIBRARIES "${AWS_PREFIX}/lib/${AWS_STATIC_S3_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}"
-          "${AWS_PREFIX}/lib/${AWS_STATIC_CORE_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(AWS_STATIC_S3 "${AWS_PREFIX}/lib/${AWS_STATIC_S3_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(AWS_STATIC_CORE "${AWS_PREFIX}/lib/${AWS_STATIC_CORE_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
   ExternalProject_Add(awssdk
           DEPENDS curl openssl zlib
@@ -273,13 +273,22 @@ if (ARROW_PLASMA_S3)
 
   include_directories(SYSTEM ${AWS_INCLUDE_DIR})
   message(STATUS "AWS include dir: ${AWS_INCLUDE_DIR}")
-  message(STATUS "AWS static libraries: ${AWS_LIBRARIES}")
+  message(STATUS "AWS core libraries: ${AWS_STATIC_CORE}")
+  message(STATUS "AWS S3 libraries: ${AWS_STATIC_S3}")
 
   install(FILES ${AWS_LIBRARIES} DESTINATION lib)
   install(DIRECTORY ${AWS_INCLUDE_DIR}/aws DESTINATION include)
 
+  add_library(awssdk_core STATIC IMPORTED)
+  set_property(TARGET awssdk_core PROPERTY IMPORTED_LOCATION ${AWS_STATIC_CORE})
+  add_dependencies(awssdk_core awssdk)
+
+  add_library(awssdk_s3 STATIC IMPORTED)
+  set_property(TARGET awssdk_s3 PROPERTY IMPORTED_LOCATION ${AWS_STATIC_S3})
+  add_dependencies(awssdk_s3 awssdk)
+
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "s3_store.cc")
-  list(APPEND PLASMA_EXTERNAL_STORE_LIBS ${AWS_LIBRARIES})
+  list(APPEND PLASMA_EXTERNAL_STORE_LIBS awssdk_s3 awssdk_core)
 endif ()
 
 if (ARROW_PLASMA_REDIS)
