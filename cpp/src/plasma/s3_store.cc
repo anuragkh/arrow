@@ -17,6 +17,9 @@
 
 #include "s3_store.h"
 
+#include <aws/s3/model/PutObjectRequest.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/core/utils/stream/SimpleStreamBuf.h>
 #include <aws/s3/model/DeleteBucketRequest.h>
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/s3/model/HeadBucketRequest.h>
@@ -43,11 +46,8 @@ std::shared_ptr<ExternalStoreHandle> S3Store::Connect(const std::string &endpoin
   auto path_elements = ExtractEndpointElements(endpoint);
   ARROW_LOG(INFO) << "Connecting to s3 bucket \"" << path_elements.first
                   << "\" with key-prefix \"" << path_elements.second << "\"";
-  auto client = Aws::MakeShared<S3Client>("S3Store");
-  ARROW_LOG(INFO) << "Connected!";
   return std::make_shared<S3StoreHandle>(path_elements.first,
-                                         path_elements.second,
-                                         client);
+                                         path_elements.second);
 }
 
 S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
@@ -66,7 +66,7 @@ Status S3StoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::st
     objectStream->flush();
     request.SetBody(objectStream);
 
-    auto outcome = client_->PutObject(request);
+    auto outcome = client_.PutObject(request);
     if (!outcome.IsSuccess())
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
   }
@@ -77,7 +77,7 @@ Status S3StoreHandle::Get(size_t num_objects, const ObjectID *ids, std::string *
   for (size_t i = 0; i < num_objects; ++i) {
     Aws::S3::Model::GetObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].binary().data());
-    auto outcome = client_->GetObject(request);
+    auto outcome = client_.GetObject(request);
     if (!outcome.IsSuccess())
       throw std::runtime_error(outcome.GetError().GetMessage().c_str());
     auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());

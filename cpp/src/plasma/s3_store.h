@@ -22,9 +22,6 @@
 
 #include <aws/core/Aws.h>
 #include <aws/s3/S3Client.h>
-#include <aws/s3/model/PutObjectRequest.h>
-#include <aws/s3/model/GetObjectRequest.h>
-#include <aws/core/utils/stream/SimpleStreamBuf.h>
 
 namespace plasma {
 
@@ -38,7 +35,7 @@ class S3StoreHandle : public ExternalStoreHandle {
  private:
   Aws::String bucket_name_;
   Aws::String key_prefix_;
-  std::shared_ptr<Aws::S3::S3Client> client_;
+  Aws::S3::S3Client client_;
 };
 
 class S3Store : public ExternalStore {
