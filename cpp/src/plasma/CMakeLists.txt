@@ -288,7 +288,7 @@ if (ARROW_PLASMA_S3)
   add_dependencies(awssdk_s3 awssdk)
 
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "s3_store.cc")
-  list(APPEND PLASMA_EXTERNAL_STORE_LIBS awssdk_s3 awssdk_core)
+  list(APPEND PLASMA_EXTERNAL_STORE_LIBS awssdk_s3 awssdk_core ${CURL_LIBRARY} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARY})
 endif ()
 
 if (ARROW_PLASMA_REDIS)
