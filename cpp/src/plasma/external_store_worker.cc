@@ -55,12 +55,13 @@ Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
 void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
                                       const std::vector<std::string> &object_data) {
   int num_objects = static_cast<int>(object_ids.size());
+  const ObjectID *ids_ptr = &object_ids[0];
+  const std::string *data_ptr = &object_data[0];
+
+#if READ_WRITE_PARALLELISM > 1
   int num_chunks = std::min(READ_WRITE_PARALLELISM, num_objects);
   int chunk_size = num_objects / num_chunks;
   int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
-
-  const ObjectID *ids_ptr = &object_ids[0];
-  const std::string *data_ptr = &object_data[0];
 
   std::vector<std::future<Status>> futures;
   for (int i = 0; i < num_chunks; ++i) {
@@ -75,10 +76,16 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   for (auto &fut: futures) {
     ARROW_CHECK_OK(fut.get());
   }
+#else
+  ARROW_CHECK_OK(ExternalStoreWorker::WriteChunkToExternalStore(external_store_handles_.back(),
+                                                                num_objects,
+                                                                ids_ptr,
+                                                                data_ptr));
+#endif
 
   num_writes_ += num_objects;
-  for (size_t i = 0; i < object_data.size(); ++i) {
-    num_bytes_written_ += object_data.at(i).size();
+  for (const auto &i : object_data) {
+    num_bytes_written_ += i.size();
   }
 }
 
@@ -118,12 +125,14 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
   data.resize(object_ids.size());
 
   int num_objects = static_cast<int>(object_ids.size());
+  const ObjectID *ids_ptr = &object_ids[0];
+  std::string *data_ptr = &data[0];
+#if READ_WRITE_PARALLELISM > 1
   int num_chunks = std::min(READ_WRITE_PARALLELISM, num_objects);
   int chunk_size = num_objects / num_chunks;
   int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
-  const ObjectID *ids_ptr = &object_ids[0];
-  std::string *data_ptr = &data[0];
+
 
   std::vector<std::future<Status>> futures;
   for (int i = 0; i < num_chunks; ++i) {
@@ -138,7 +147,12 @@ void ExternalStoreWorker::ParallelGetAndWriteBack(const std::vector<ObjectID> &o
   for (auto &fut: futures) {
     ARROW_CHECK_OK(fut.get());
   }
-
+#else
+  ARROW_CHECK_OK(ExternalStoreWorker::ReadChunkFromExternalStore(external_store_handles_.front(),
+                                                                 num_objects,
+                                                                 ids_ptr,
+                                                                 data_ptr));
+#endif
   // Write back to plasma store
   auto client = Client();
   for (size_t i = 0; i < object_ids.size(); ++i) {
