@@ -62,8 +62,11 @@ class ExternalStoreWorker {
   /// Shutdown the external store worker.
   void Shutdown();
 
+  // Reset Counters
+  void ResetCounters();
+
   /// Print statistics
-  void PrintStatistics();
+  void PrintCounters();
 
  private:
   /// Contains the logic for the worker thread.

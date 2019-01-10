@@ -54,74 +54,35 @@ S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
                              std::shared_ptr<Aws::S3::S3Client> client)
     : bucket_name_(bucket), key_prefix_(key_prefix), client_(std::move(client)) {}
 
-Status S3StoreHandle::Put(const std::vector<ObjectID> &object_ids,
-                          const std::vector<std::string> &object_data,
-                          const std::vector<std::string> &object_metadata) {
-  return Put(object_ids.size(), &object_ids[0], &object_data[0], &object_metadata[0]);
-}
-
-Status S3StoreHandle::Get(const std::vector<ObjectID> &object_ids,
-                          std::vector<std::string> *object_data,
-                          std::vector<std::string> *object_metadata) {
-  object_data->resize(object_ids.size());
-  object_metadata->resize(object_ids.size());
-  return Get(object_ids.size(), &object_ids[0], &(*object_data)[0], &(*object_metadata)[0]);
-}
-
-Status S3StoreHandle::Put(size_t num_objects,
-                          const ObjectID *object_ids,
-                          const std::string *object_data,
-                          const std::string *object_metadata) {
+Status S3StoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::string *data) {
+  std::string err_msg;
   for (size_t i = 0; i < num_objects; ++i) {
-    auto outcome = client_->PutObject(MakePutRequest(object_ids[i], object_data[i], object_metadata[i]));
-    ParsePutResponse(outcome);
+    Aws::S3::Model::PutObjectRequest request;
+    request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].binary().data());
+
+    auto objectStream = Aws::MakeShared<Aws::StringStream>("DataStream");
+    *objectStream << data[i];
+    objectStream->flush();
+    request.SetBody(objectStream);
+
+    auto outcome = client_->PutObject(request);
+    if (!outcome.IsSuccess())
+      err_msg += outcome.GetError().GetMessage() + "\n";
+  }
+  return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
+}
+
+Status S3StoreHandle::Get(size_t num_objects, const ObjectID *ids, std::string *data) {
+  for (size_t i = 0; i < num_objects; ++i) {
+    Aws::S3::Model::GetObjectRequest request;
+    request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].binary().data());
+    auto outcome = client_->GetObject(request);
+    if (!outcome.IsSuccess())
+      throw std::runtime_error(outcome.GetError().GetMessage().c_str());
+    auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
+    data[i].assign(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
   }
   return Status::OK();
-}
-
-Status S3StoreHandle::Get(size_t num_objects,
-                          const ObjectID *object_ids,
-                          std::string *object_data,
-                          std::string *object_metadata) {
-  for (size_t i = 0; i < num_objects; ++i) {
-    auto outcome = client_->GetObject(MakeGetRequest(object_ids[i]));
-    auto response = ParseGetResponse(outcome);
-    object_data[i] = response.first;
-    object_metadata[i] = response.second;
-  }
-  return Status::OK();
-}
-
-Aws::S3::Model::PutObjectRequest S3StoreHandle::MakePutRequest(const ObjectID &key,
-                                                               const std::string &object_data,
-                                                               const std::string &object_metadata) const {
-  Aws::S3::Model::PutObjectRequest request;
-  request.WithBucket(bucket_name_).WithKey(key_prefix_ + key.binary().data());
-
-  auto objectStream = Aws::MakeShared<Aws::StringStream>("DataStream");
-  *objectStream << SerializeValue(object_data, object_metadata);
-  objectStream->flush();
-  request.SetBody(objectStream);
-  return request;
-}
-
-Aws::S3::Model::GetObjectRequest S3StoreHandle::MakeGetRequest(const ObjectID &key) const {
-  Aws::S3::Model::GetObjectRequest request;
-  request.WithBucket(bucket_name_).WithKey(key_prefix_ + key.binary().data());
-  return request;
-}
-
-std::pair<std::string, std::string> S3StoreHandle::ParseGetResponse(Aws::S3::Model::GetObjectOutcome &outcome) const {
-  if (!outcome.IsSuccess())
-    throw std::runtime_error(outcome.GetError().GetMessage().c_str());
-  auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
-  std::string binary = std::string(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
-  return DeserializeValue(binary);
-}
-
-void S3StoreHandle::ParsePutResponse(Aws::S3::Model::PutObjectOutcome &outcome) const {
-  if (!outcome.IsSuccess())
-    throw std::runtime_error(outcome.GetError().GetMessage().c_str());
 }
 
 std::pair<Aws::String, Aws::String> S3Store::ExtractEndpointElements(const std::string &s3_endpoint) {

@@ -27,50 +27,27 @@ HashTableStoreHandle::HashTableStoreHandle(hash_table_t &table, std::mutex &mtx)
     : table_(table), mtx_(mtx) {
 }
 
-Status HashTableStoreHandle::Put(const std::vector<ObjectID> &object_ids,
-                                 const std::vector<std::string> &object_data,
-                                 const std::vector<std::string> &object_metadata) {
-  return Put(object_ids.size(), &object_ids[0], &object_data[0], &object_metadata[0]);
-}
-
-
-Status HashTableStoreHandle::Put(size_t num_objects,
-                                 const ObjectID *object_ids,
-                                 const std::string *object_data,
-                                 const std::string *object_metadata) {
+Status HashTableStoreHandle::Put(size_t num_objects, const ObjectID *ids, const std::string *data) {
   for (size_t i = 0; i < num_objects; ++i) {
     std::lock_guard<std::mutex> lock(mtx_);
-    table_[object_ids[i]] = std::make_pair(object_data[i], object_metadata[i]);
+    table_[ids[i]] = data[i];
   }
   return Status::OK();
 }
 
-Status HashTableStoreHandle::Get(const std::vector<ObjectID> &object_ids,
-                                 std::vector<std::string> *object_data,
-                                 std::vector<std::string> *object_metadata) {
-  object_data->resize(object_ids.size());
-  object_metadata->resize(object_ids.size());
-  return Get(object_ids.size(), &object_ids[0], &(*object_data)[0], &(*object_metadata)[0]);
-}
-
-Status HashTableStoreHandle::Get(size_t num_objects,
-                                 const ObjectID *object_ids,
-                                 std::string *object_data,
-                                 std::string *object_metadata) {
+Status HashTableStoreHandle::Get(size_t num_objects, const ObjectID *ids, std::string *data) {
   for (size_t i = 0; i < num_objects; ++i) {
     bool valid;
     hash_table_t::iterator result;
     {
       std::lock_guard<std::mutex> lock(mtx_);
-      result = table_.find(object_ids[i]);
+      result = table_.find(ids[i]);
       valid = result != table_.end();
     }
     if (valid) {
-      object_data[i] = result->second.first;
-      object_metadata[i] = result->second.second;
+      data[i] = result->second;
     } else {
-      object_data[i].clear();
-      object_metadata[i].clear();
+      data[i].clear();
     }
   }
   return Status::OK();

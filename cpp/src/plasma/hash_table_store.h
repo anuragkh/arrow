@@ -23,28 +23,14 @@
 
 namespace plasma {
 
-typedef std::unordered_map<ObjectID, std::pair<std::string, std::string>> hash_table_t;
+typedef std::unordered_map<ObjectID, std::string> hash_table_t;
 
 class HashTableStoreHandle : public ExternalStoreHandle {
  public:
   HashTableStoreHandle(hash_table_t& table, std::mutex& mtx);
 
-  Status Put(const std::vector<ObjectID> &object_ids,
-             const std::vector<std::string> &object_data,
-             const std::vector<std::string> &object_metadata) override;
-
-  Status Get(const std::vector<ObjectID> &object_ids,
-             std::vector<std::string> *object_data,
-             std::vector<std::string> *object_metadata) override;
-
-  Status Get(size_t num_objects,
-             const ObjectID *object_ids,
-             std::string *object_data,
-             std::string *object_metadata) override;
-  Status Put(size_t num_objects,
-             const ObjectID *object_ids,
-             const std::string *object_data,
-             const std::string *object_metadata) override;
+  Status Get(size_t num_objects, const ObjectID *ids, std::string *data) override;
+  Status Put(size_t num_objects, const ObjectID *ids, const std::string *data) override;
 
  private:
   hash_table_t& table_;

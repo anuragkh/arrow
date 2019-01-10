@@ -52,21 +52,21 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
  public:
   // TODO(pcm): At the moment, stdout of the test gets mixed up with
   // stdout of the object store. Consider changing that.
-  void SetUp() {
-    uint64_t seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+  void SetUp() override {
+    uint64_t seed = static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     std::mt19937 rng(static_cast<uint32_t>(seed));
     std::string store_index = std::to_string(rng());
     store_socket_name_ = "/tmp/store" + store_index;
 
     std::string plasma_directory =
-        external_test_executable.substr(0, external_test_executable.find_last_of("/"));
+        external_test_executable.substr(0, external_test_executable.find_last_of('/'));
     std::string plasma_command = plasma_directory +
                                  "/plasma_store_server -m 104857600 -e hashtable://test -s " +
                                  store_socket_name_ + " 1> /tmp/log.stdout 2> /tmp/log.stderr &";
     system(plasma_command.c_str());
     ARROW_CHECK_OK(client_.Connect(store_socket_name_, ""));
   }
-  virtual void TearDown() {
+  void TearDown() override {
     ARROW_CHECK_OK(client_.Disconnect());
     // Kill all plasma_store processes
     // TODO should only kill the processes we launched
@@ -87,7 +87,7 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
 TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   std::vector<ObjectID> object_ids;
   std::string data(10 * 1024 * 1024, 'x');
-  std::string metadata(1, char(5));
+  std::string metadata;
   for (int i = 0; i < 11; i++) {
     ObjectID object_id = random_object_id();
     object_ids.push_back(object_id);
@@ -157,12 +157,12 @@ TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   for (int i = 0; i < 2; i++) {
     // Try and access object from plasma store, without trying external store.
     // This should succeed to fetch the object.
-    std::vector<ObjectBuffer> object_buffers;
-    ARROW_CHECK_OK(client_.Get({object_ids[i]}, -1, &object_buffers));
-    ASSERT_EQ(object_buffers.size(), 1);
-    ASSERT_EQ(object_buffers[0].device_num, 0);
-    ASSERT_TRUE(object_buffers[0].data);
-    AssertObjectBufferEqual(object_buffers[0], metadata, data);
+    std::vector<ObjectBuffer> obj_buffers;
+    ARROW_CHECK_OK(client_.Get({object_ids[i]}, -1, &obj_buffers));
+    ASSERT_EQ(obj_buffers.size(), 1);
+    ASSERT_EQ(obj_buffers[0].device_num, 0);
+    ASSERT_TRUE(obj_buffers[0].data);
+    AssertObjectBufferEqual(obj_buffers[0], metadata, data);
   }
 }
 

@@ -38,64 +38,23 @@ class ExternalStoreHandle {
   /// This method will be called whenever an object in the Plasma store needs
   /// to be evicted to the external store.
   ///
-  /// \param object_ids The IDs of the objects to put.
-  /// \param object_data The object data to put.
-  /// \param object_metadata The object metadata to put.
-  /// \return The return status.
-  virtual Status Put(const std::vector<ObjectID> &object_ids,
-                     const std::vector<std::string> &object_data,
-                     const std::vector<std::string> &object_metadata) = 0;
-
-  /// This method will be called whenever an object in the Plasma store needs
-  /// to be evicted to the external store.
-  ///
   /// \param num_objects The number of objects to put.
-  /// \param object_ids The IDs of the objects to put.
-  /// \param object_data The object data to put.
+  /// \param ids The IDs of the objects to put.
+  /// \param data The object data to put.
   /// \param object_metadata The object metadata to put.
   /// \return The return status.
-  virtual Status Put(size_t num_objects,
-                     const ObjectID *object_ids,
-                     const std::string *object_data,
-                     const std::string *object_metadata) = 0;
-
-  /// This method will be called whenever an evicted object in the External
-  /// store store needs to be accessed.
-  ///
-  /// \param object_ids The IDs of the objects to get.
-  /// \param[out] object_data The object data.
-  /// \param[out] object_metadata The object metadata.
-  /// \return The return status.
-  virtual Status Get(const std::vector<ObjectID> &object_ids,
-                     std::vector<std::string> *object_data,
-                     std::vector<std::string> *object_metadata) = 0;
-
+  virtual Status Put(size_t num_objects, const ObjectID *ids, const std::string *data) = 0;
 
   /// This method will be called whenever an evicted object in the External
   /// store store needs to be accessed.
   ///
   /// \param num_objects The number of objects to get.
-  /// \param object_ids The IDs of the objects to get.
-  /// \param[out] object_data The object data.
+  /// \param ids The IDs of the objects to get.
+  /// \param[out] data The object data.
   /// \param[out] object_metadata The object metadata.
   /// \return The return status.
-  virtual Status Get(size_t num_objects,
-                     const ObjectID *object_ids,
-                     std::string *object_data,
-                     std::string *object_metadata) = 0;
+  virtual Status Get(size_t num_objects, const ObjectID *ids, std::string *data) = 0;
 
- protected:
-  /// Serializes the ObjectBuffer to a single binary string
-  ///
-  /// \param buffer The ObjectBuffer to serialize.
-  /// \return The serialized value as a binary string.
-  std::string SerializeValue(const std::string &object_data, const std::string &object_metadata) const;
-
-  /// Deserializes a binary string into the object data and metadata.
-  ///
-  /// \param binary The binary string to deserialize.
-  /// \return The deserialized string pair containing the object data and metadata.
-  std::pair<std::string, std::string> DeserializeValue(const std::string &binary) const;
 };
 
 class ExternalStore {

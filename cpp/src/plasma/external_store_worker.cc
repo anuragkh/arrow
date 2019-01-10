@@ -30,7 +30,7 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
 }
 
 ExternalStoreWorker::~ExternalStoreWorker() {
-  PrintStatistics();
+  PrintCounters();
   if (!stopped_) {
     Shutdown();
   }
@@ -44,7 +44,7 @@ Status ExternalStoreWorker::GetAndWriteToPlasma(const ObjectID &object_id) {
   size_t n_enqueued = 0;
   {
     std::unique_lock<std::mutex> lock(tasks_mutex_);
-    if (object_ids_.size() > max_enqueue_) {
+    if (object_ids_.size() >= max_enqueue_) {
       return Status::CapacityError("Too many un-evict requests");
     }
     object_ids_.push_back(object_id);
@@ -103,9 +103,17 @@ void ExternalStoreWorker::Shutdown() {
   stopped_ = true;
 }
 
-void ExternalStoreWorker::PrintStatistics() {
+void ExternalStoreWorker::ResetCounters() {
+  num_writes_ = 0;
+  num_bytes_written_ = 0;
+  num_reads_ = 0;
+  num_bytes_read_ = 0;
+  num_reads_not_found_ = 0;
+}
+
+void ExternalStoreWorker::PrintCounters() {
   // Print statistics
-  ARROW_LOG(INFO) << "External Store Statistics: ";
+  ARROW_LOG(INFO) << "External Store Counters: ";
   ARROW_LOG(INFO) << "Number of objects written: " << num_writes_;
   ARROW_LOG(INFO) << "Number of bytes written: " << num_bytes_written_;
   ARROW_LOG(INFO) << "Number of objects read: " << num_reads_;
@@ -217,7 +225,7 @@ Status ExternalStoreWorker::WriteChunkToExternalStore(std::shared_ptr<ExternalSt
                                                       const ObjectID *ids,
                                                       const std::string *data,
                                                       const std::string *metadata) {
-  return handle->Put(num_objects, ids, data, metadata);
+  return handle->Put(num_objects, ids, data);
 }
 
 Status ExternalStoreWorker::ReadChunkFromExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
@@ -225,7 +233,7 @@ Status ExternalStoreWorker::ReadChunkFromExternalStore(std::shared_ptr<ExternalS
                                                        const ObjectID *ids,
                                                        std::string *data,
                                                        std::string *metadata) {
-  return handle->Get(num_objects, ids, data, metadata);
+  return handle->Get(num_objects, ids, data);
 }
 
 }
