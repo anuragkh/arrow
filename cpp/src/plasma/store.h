@@ -122,21 +122,10 @@ class PlasmaStore {
   ///  - PlasmaError::ObjectInUse, if the object is in use.
   PlasmaError DeleteObject(ObjectID& object_id);
 
-  /// Delete objects that have been created in the hash table. This should only
-  /// be called on objects that are returned by the eviction policy to evict.
-  ///
-  /// @param object_ids Object IDs of the objects to be deleted.
-  void DeleteObjects(const std::vector<ObjectID>& object_ids);
-
   /// Evict objects returned by the eviction policy.
   ///
   /// @param object_ids Object Ids of the objects to be evicted.
   void EvictObjects(const std::vector<ObjectID>& object_ids);
-
-  /// Try to un-evict objects by fetching them from external store
-  ///
-  /// @param object_id Object Ids of the objects to be un-evicted.
-  PlasmaError TryUnevict(const ObjectID &object_id);
 
   /// Process a get request from a client. This method assumes that we will
   /// eventually have these objects sealed. If one of the objects has not yet
@@ -149,10 +138,7 @@ class PlasmaStore {
   /// @param client The client making this request.
   /// @param object_ids Object IDs of the objects to be gotten.
   /// @param timeout_ms The timeout for the get request in milliseconds.
-  void ProcessGetRequest(Client *client,
-                         const std::vector<ObjectID> &object_ids,
-                         int64_t timeout_ms,
-                         bool try_external_store);
+  void ProcessGetRequest(Client *client, const std::vector<ObjectID> &object_ids, int64_t timeout_ms);
 
   /// Seal an object. The object is now immutable and can be accessed with get.
   ///
@@ -218,6 +204,8 @@ class PlasmaStore {
 
   int RemoveFromClientObjectIds(const ObjectID& object_id, ObjectTableEntry* entry,
                                 Client* client);
+
+  uint8_t* AllocateMemory(int device_num, size_t size, int *fd, int64_t *map_size, ptrdiff_t *offset);
 
   /// Event loop of the plasma store.
   EventLoop* loop_;

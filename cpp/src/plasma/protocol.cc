@@ -500,53 +500,16 @@ Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes) {
   return Status::OK();
 }
 
-// Unevict messages.
-
-Status SendTryUnevictRequest(int sock, const ObjectID &object_id) {
-  flatbuffers::FlatBufferBuilder fbb;
-  auto message =
-      fb::CreatePlasmaTryUnevictRequest(fbb, fbb.CreateString(object_id.binary()));
-  return PlasmaSend(sock, MessageType::PlasmaTryUnevictRequest, &fbb, message);
-}
-
-Status ReadTryUnevictRequest(uint8_t *data, size_t size, ObjectID *object_id) {
-  DCHECK(data);
-  auto message = flatbuffers::GetRoot<fb::PlasmaTryUnevictRequest>(data);
-  DCHECK(VerifyFlatbuffer(message, data, size));
-  *object_id = ObjectID::from_binary(message->object_id()->str());
-  return Status::OK();
-}
-
-Status SendTryUnevictReply(int sock, ObjectID object_id, PlasmaError error) {
-  flatbuffers::FlatBufferBuilder fbb;
-  auto message =
-      fb::CreatePlasmaTryUnevictReply(fbb, fbb.CreateString(object_id.binary()), error);
-  return PlasmaSend(sock, MessageType::PlasmaTryUnevictReply, &fbb, message);
-}
-
-Status ReadTryUnevictReply(uint8_t* data, size_t size, ObjectID* object_id) {
-  DCHECK(data);
-  auto message = flatbuffers::GetRoot<fb::PlasmaTryUnevictReply>(data);
-  DCHECK(VerifyFlatbuffer(message, data, size));
-  *object_id = ObjectID::from_binary(message->object_id()->str());
-  return PlasmaErrorStatus(message->error());
-}
-
 // Get messages.
 
-Status SendGetRequest(int sock,
-                      const ObjectID *object_ids,
-                      int64_t num_objects,
-                      int64_t timeout_ms,
-                      bool try_external_store) {
+Status SendGetRequest(int sock, const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms) {
   flatbuffers::FlatBufferBuilder fbb;
   auto message = fb::CreatePlasmaGetRequest(
-      fbb, ToFlatbuffer(&fbb, object_ids, num_objects), timeout_ms, try_external_store);
+      fbb, ToFlatbuffer(&fbb, object_ids, num_objects), timeout_ms);
   return PlasmaSend(sock, MessageType::PlasmaGetRequest, &fbb, message);
 }
 
-Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_ids,
-                      int64_t* timeout_ms, bool* try_external_store) {
+Status ReadGetRequest(uint8_t *data, size_t size, std::vector<ObjectID> &object_ids, int64_t *timeout_ms) {
   DCHECK(data);
   auto message = flatbuffers::GetRoot<fb::PlasmaGetRequest>(data);
   DCHECK(VerifyFlatbuffer(message, data, size));
@@ -555,7 +518,6 @@ Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_
     object_ids.push_back(ObjectID::from_binary(object_id));
   }
   *timeout_ms = message->timeout_ms();
-  *try_external_store = message->try_external_store();
   return Status::OK();
 }
 

@@ -97,6 +97,14 @@ std::pair<Aws::String, Aws::String> S3Store::ExtractEndpointElements(const std::
   return std::make_pair(s3_bucket, s3_key_prefix);
 }
 
+S3Store::S3Store() {
+  Aws::InitAPI(options_);
+}
+
+S3Store::~S3Store() {
+  Aws::ShutdownAPI(options_);
+}
+
 REGISTER_EXTERNAL_STORE("s3", S3Store);
 
 }

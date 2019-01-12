@@ -54,9 +54,6 @@ enum MessageType:long {
   // Make room for new objects in the plasma store.
   PlasmaEvictRequest,
   PlasmaEvictReply,
-  // Un-evict objects from external store if possible
-  PlasmaTryUnevictRequest,
-  PlasmaTryUnevictReply,
   // Subscribe to a list of objects or to all objects.
   PlasmaSubscribeRequest,
   // Unsubscribe.
@@ -185,8 +182,6 @@ table PlasmaGetRequest {
   object_ids: [string];
   // The number of milliseconds before the request should timeout.
   timeout_ms: long;
-  // Whether to fetch from external storage if not found locally.
-  try_external_store: bool = true;
 }
 
 table PlasmaGetReply {
@@ -277,18 +272,6 @@ table PlasmaEvictRequest {
 table PlasmaEvictReply {
   // Number of bytes that have been freed.
   num_bytes: ulong;
-}
-
-table PlasmaTryUnevictRequest {
-  // Object to un-evict.
-  object_id: string;
-}
-
-table PlasmaTryUnevictReply {
-  // ID of the object that was un-evicted.
-  object_id: string;
-  // Error code.
-  error: PlasmaError;
 }
 
 table PlasmaSubscribeRequest {
