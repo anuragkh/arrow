@@ -950,7 +950,7 @@ class TestPlasmaClient(object):
 
         object_ids = [random_object_id() for _ in range(0, 11)]
         data = b'x' * 10 * 1024 * 1024
-        metadata = b'x'
+        metadata = b''
 
         for i in range(0, 11):
             # Test for object non-existence.
