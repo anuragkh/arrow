@@ -40,10 +40,14 @@ class S3StoreHandle : public ExternalStoreHandle {
 
 class S3Store : public ExternalStore {
  public:
+  S3Store();
+  ~S3Store() override;
   std::shared_ptr<ExternalStoreHandle> Connect(const std::string &endpoint) override;
 
  private:
   std::pair<Aws::String, Aws::String> ExtractEndpointElements(const std::string &s3_endpoint);
+
+  Aws::SDKOptions options_;
 };
 
 }

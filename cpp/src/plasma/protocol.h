@@ -91,14 +91,9 @@ Status ReadSealReply(uint8_t* data, size_t size, ObjectID* object_id);
 
 /* Plasma Get message functions. */
 
-Status SendGetRequest(int sock,
-                      const ObjectID *object_ids,
-                      int64_t num_objects,
-                      int64_t timeout_ms,
-                      bool try_external_store = true);
+Status SendGetRequest(int sock, const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms);
 
-Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_ids,
-                      int64_t* timeout_ms, bool* try_external_store);
+Status ReadGetRequest(uint8_t *data, size_t size, std::vector<ObjectID> &object_ids, int64_t *timeout_ms);
 
 Status SendGetReply(int sock, ObjectID object_ids[],
                     std::unordered_map<ObjectID, PlasmaObject>& plasma_objects,
@@ -171,16 +166,6 @@ Status ReadEvictRequest(uint8_t* data, size_t size, int64_t* num_bytes);
 Status SendEvictReply(int sock, int64_t num_bytes);
 
 Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes);
-
-/* Plasma Unevict message functions. */
-
-Status SendTryUnevictRequest(int sock, const ObjectID &object_id);
-
-Status ReadTryUnevictRequest(uint8_t *data, size_t size, ObjectID *object_id);
-
-Status SendTryUnevictReply(int sock, ObjectID object_id, PlasmaError error);
-
-Status ReadTryUnevictReply(uint8_t* data, size_t size, ObjectID* object_id);
 
 /* Plasma Subscribe message functions. */
 

@@ -173,11 +173,6 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
   Status Get(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
              ObjectBuffer* object_buffers);
 
-  Status GetTryExternal(const std::vector<ObjectID>& object_ids, int64_t timeout_ms,
-             std::vector<ObjectBuffer> *out);
-
-  Status TryUnevict(const ObjectID &object_id);
-
   Status Release(const ObjectID& object_id);
 
   Status Contains(const ObjectID& object_id, bool* has_object);
@@ -227,7 +222,6 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
                     int64_t timeout_ms,
                     const std::function<std::shared_ptr<Buffer>(
                       const ObjectID &, const std::shared_ptr<Buffer> &)> &wrap_buffer,
-                    bool try_external_store,
                     ObjectBuffer *object_buffers);
 
   uint8_t* LookupOrMmap(int fd, int store_fd_val, int64_t map_size);
@@ -444,7 +438,6 @@ Status PlasmaClient::Impl::GetBuffers(const ObjectID *object_ids,
                                       int64_t timeout_ms,
                                       const std::function<std::shared_ptr<Buffer>(
                       const ObjectID &, const std::shared_ptr<Buffer> &)> &wrap_buffer,
-                                      bool try_external_store,
                                       ObjectBuffer *object_buffers) {
   // Fill out the info for the objects that are already in use locally.
   bool all_present = true;
@@ -495,7 +488,7 @@ Status PlasmaClient::Impl::GetBuffers(const ObjectID *object_ids,
 
   // If we get here, then the objects aren't all currently in use by this
   // client, so we need to send a request to the plasma store.
-  RETURN_NOT_OK(SendGetRequest(store_conn_, &object_ids[0], num_objects, timeout_ms, try_external_store));
+  RETURN_NOT_OK(SendGetRequest(store_conn_, &object_ids[0], num_objects, timeout_ms));
   std::vector<uint8_t> buffer;
   RETURN_NOT_OK(PlasmaReceive(store_conn_, MessageType::PlasmaGetReply, &buffer));
   std::vector<ObjectID> received_object_ids(num_objects);
@@ -571,20 +564,6 @@ Status PlasmaClient::Impl::GetBuffers(const ObjectID *object_ids,
   return Status::OK();
 }
 
-Status PlasmaClient::Impl::TryUnevict(const ObjectID &object_id) {
-  if (objects_in_use_.count(object_id) == 0) {
-    ARROW_CHECK_OK(SendTryUnevictRequest(store_conn_, object_id));
-
-    std::vector<uint8_t> buffer;
-    RETURN_NOT_OK(PlasmaReceive(store_conn_, MessageType::PlasmaTryUnevictReply, &buffer));
-    ObjectID object_id2;
-    DCHECK_GT(buffer.size(), 0);
-    RETURN_NOT_OK(
-        ReadTryUnevictReply(buffer.data(), buffer.size(), &object_id2));
-  }
-  return Status::OK();
-}
-
 Status PlasmaClient::Impl::Get(const std::vector<ObjectID>& object_ids,
                                int64_t timeout_ms, std::vector<ObjectBuffer>* out) {
   const auto wrap_buffer = [=](const ObjectID& object_id,
@@ -593,26 +572,14 @@ Status PlasmaClient::Impl::Get(const std::vector<ObjectID>& object_ids,
   };
   const size_t num_objects = object_ids.size();
   *out = std::vector<ObjectBuffer>(num_objects);
-  return GetBuffers(&object_ids[0], num_objects, timeout_ms, wrap_buffer, false, &(*out)[0]);
+  return GetBuffers(&object_ids[0], num_objects, timeout_ms, wrap_buffer, &(*out)[0]);
 }
 
 Status PlasmaClient::Impl::Get(const ObjectID* object_ids, int64_t num_objects,
                                int64_t timeout_ms, ObjectBuffer* out) {
   const auto wrap_buffer = [](const ObjectID& object_id,
                               const std::shared_ptr<Buffer>& buffer) { return buffer; };
-  return GetBuffers(object_ids, num_objects, timeout_ms, wrap_buffer, false, out);
-}
-
-Status PlasmaClient::Impl::GetTryExternal(const std::vector<ObjectID> &object_ids,
-                                          int64_t timeout_ms,
-                                          std::vector<ObjectBuffer> *out) {
-  const auto wrap_buffer = [=](const ObjectID& object_id,
-                               const std::shared_ptr<Buffer>& buffer) {
-    return std::make_shared<PlasmaBuffer>(shared_from_this(), object_id, buffer);
-  };
-  const size_t num_objects = object_ids.size();
-  *out = std::vector<ObjectBuffer>(num_objects);
-  return GetBuffers(&object_ids[0], num_objects, timeout_ms, wrap_buffer, true, &(*out)[0]);
+  return GetBuffers(object_ids, num_objects, timeout_ms, wrap_buffer, out);
 }
 
 Status PlasmaClient::Impl::MarkObjectUnused(const ObjectID& object_id) {
@@ -955,16 +922,6 @@ Status PlasmaClient::Get(const std::vector<ObjectID>& object_ids, int64_t timeou
 Status PlasmaClient::Get(const ObjectID* object_ids, int64_t num_objects,
                          int64_t timeout_ms, ObjectBuffer* object_buffers) {
   return impl_->Get(object_ids, num_objects, timeout_ms, object_buffers);
-}
-
-Status PlasmaClient::GetTryExternal(const std::vector<ObjectID> &object_ids,
-                                    int64_t timeout_ms,
-                                    std::vector<ObjectBuffer> *object_buffers) {
-  return impl_->GetTryExternal(object_ids, timeout_ms, object_buffers);
-}
-
-Status PlasmaClient::TryUnevict(const ObjectID &object_id) {
-  return impl_->TryUnevict(object_id);
 }
 
 Status PlasmaClient::Release(const ObjectID& object_id) {
