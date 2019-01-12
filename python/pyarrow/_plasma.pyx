@@ -110,14 +110,9 @@ cdef extern from "plasma/client.h" nogil:
         CStatus Get(const c_vector[CUniqueID] object_ids, int64_t timeout_ms,
                     c_vector[CObjectBuffer]* object_buffers)
 
-        CStatus GetTryExternal(const c_vector[CUniqueID] object_ids, int64_t timeout_ms,
-                               c_vector[CObjectBuffer]* object_buffers)
-
         CStatus Seal(const CUniqueID& object_id)
 
         CStatus Evict(int64_t num_bytes, int64_t& num_bytes_evicted)
-
-        CStatus TryUnevict(const CUniqueID& object_id)
 
         CStatus Hash(const CUniqueID& object_id, uint8_t* digest)
 
@@ -277,7 +272,6 @@ cdef class PlasmaClient:
         self.store_socket_name = b""
 
     cdef _get_object_buffers(self, object_ids, int64_t timeout_ms,
-                             c_bool try_external,
                              c_vector[CObjectBuffer]* result):
         cdef:
             c_vector[CUniqueID] ids
@@ -286,10 +280,7 @@ cdef class PlasmaClient:
         for object_id in object_ids:
             ids.push_back(object_id.data)
         with nogil:
-            if try_external:
-                check_status(self.client.get().GetTryExternal(ids, timeout_ms, result))
-            else:
-                check_status(self.client.get().Get(ids, timeout_ms, result))
+            check_status(self.client.get().Get(ids, timeout_ms, result))
 
     # XXX C++ API should instead expose some kind of CreateAuto()
     cdef _make_mutable_plasma_buffer(self, ObjectID object_id, uint8_t* data,
@@ -367,7 +358,7 @@ cdef class PlasmaClient:
             check_status(self.client.get().CreateAndSeal(object_id.data, data,
                                                          metadata))
 
-    def get_buffers(self, object_ids, timeout_ms=-1, with_meta=False, try_external=False):
+    def get_buffers(self, object_ids, timeout_ms=-1, with_meta=False):
         """
         Returns data buffer from the PlasmaStore based on object ID.
 
@@ -383,9 +374,6 @@ cdef class PlasmaClient:
             timing out and returning. Pass -1 if the call should block and 0
             if the call should return immediately.
         with_meta : bool
-        try_external : bool, default = False
-            Try to fetch data from the external store if the data is not found
-            locally.
 
         Returns
         -------
@@ -396,7 +384,7 @@ cdef class PlasmaClient:
             PlasmaBuffer and metadata bytes.
         """
         cdef c_vector[CObjectBuffer] object_buffers
-        self._get_object_buffers(object_ids, timeout_ms, try_external, &object_buffers)
+        self._get_object_buffers(object_ids, timeout_ms, &object_buffers)
         result = []
         for i in range(object_buffers.size()):
             if object_buffers[i].data.get() != nullptr:
@@ -414,7 +402,7 @@ cdef class PlasmaClient:
                 result.append((metadata, data))
         return result
 
-    def get_metadata(self, object_ids, timeout_ms=-1, try_external=False):
+    def get_metadata(self, object_ids, timeout_ms=-1):
         """
         Returns metadata buffer from the PlasmaStore based on object ID.
 
@@ -429,9 +417,6 @@ cdef class PlasmaClient:
             The number of milliseconds that the get call should block before
             timing out and returning. Pass -1 if the call should block and 0
             if the call should return immediately.
-        try_external : bool, default = False
-            Try to fetch data from the external store if the data is not found
-            locally.
 
         Returns
         -------
@@ -440,7 +425,7 @@ cdef class PlasmaClient:
             object_ids and None if the object was not available.
         """
         cdef c_vector[CObjectBuffer] object_buffers
-        self._get_object_buffers(object_ids, timeout_ms, try_external, &object_buffers)
+        self._get_object_buffers(object_ids, timeout_ms, &object_buffers)
         result = []
         for i in range(object_buffers.size()):
             if object_buffers[i].metadata.get() != nullptr:
@@ -514,7 +499,7 @@ cdef class PlasmaClient:
         self.seal(target_id)
         return target_id
 
-    def get(self, object_ids, int timeout_ms=-1, c_bool try_external=False, serialization_context=None):
+    def get(self, object_ids, int timeout_ms=-1, serialization_context=None):
         """
         Get one or more Python values from the object store.
 
@@ -527,9 +512,6 @@ cdef class PlasmaClient:
             The number of milliseconds that the get call should block before
             timing out and returning. Pass -1 if the call should block and 0
             if the call should return immediately.
-        try_external : bool, default = False
-            Try to fetch data from the external store if the data is not found
-            locally.
         serialization_context : pyarrow.SerializationContext, default None
             Custom serialization and deserialization context.
 
@@ -542,7 +524,7 @@ cdef class PlasmaClient:
         """
         if isinstance(object_ids, collections.Sequence):
             results = []
-            buffers = self.get_buffers(object_ids, timeout_ms, try_external=try_external)
+            buffers = self.get_buffers(object_ids, timeout_ms)
             for i in range(len(object_ids)):
                 # buffers[i] is None if this object was not available within
                 # the timeout
@@ -554,19 +536,7 @@ cdef class PlasmaClient:
                     results.append(ObjectNotAvailable)
             return results
         else:
-            return self.get([object_ids], timeout_ms, try_external, serialization_context)[0]
-
-    def try_unevict(self, ObjectID object_id):
-        """
-        Un-evict the objects with the given IDs from external object store.
-
-        Parameters
-        ----------
-        object_id : ObjectID
-            A string used to identify an object.
-        """
-        with nogil:
-            check_status(self.client.get().TryUnevict(object_id.data))
+            return self.get([object_ids], timeout_ms, serialization_context)[0]
 
     def seal(self, ObjectID object_id):
         """

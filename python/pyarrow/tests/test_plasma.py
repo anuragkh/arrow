@@ -962,42 +962,18 @@ class TestPlasmaClient(object):
             # Test that the client can get the object.
             assert client.contains(object_ids[i])
 
-        # Check to make sure that the first two objects have been evicted.
-        assert not client.contains(object_ids[0])
-        assert not client.contains(object_ids[1])
-
         for i in range(0, 11):
             # Since we are accessing objects sequentially, every object we
             # access would be a cache "miss" owing to LRU eviction.
-
-            # Try and access object from plasma store, without trying external
-            # store. This should fail to fetch the object.
-            [result] = client.get_buffers([object_ids[i]], timeout_ms=0)
-            assert result is None
-
             # Try and access the object from the plasma store first, and then try
             # external store on failure. This should succeed to fetch the object.
             # However, it may evict the next few objects.
-            [result] = client.get_buffers([object_ids[i]], try_external=True)
-            assert result.to_pybytes() == data
-
-        # Make sure we still cannot fetch objects that do not exist
-        [result] = client.get_buffers([random_object_id()], timeout_ms=100, try_external=True)
-        assert result is None
-
-        # Check (again) to make sure that the first two objects have been evicted
-        assert not client.contains(object_ids[0])
-        assert not client.contains(object_ids[1])
-
-        # Try to manually unevict objects
-        client.try_unevict(object_ids[0])
-        client.try_unevict(object_ids[1])
-
-        for i in range(0, 2):
             [result] = client.get_buffers([object_ids[i]])
             assert result.to_pybytes() == data
 
-        print("Finish")
+        # Make sure we still cannot fetch objects that do not exist
+        [result] = client.get_buffers([random_object_id()], timeout_ms=100)
+        assert result is None
 
 
 @pytest.mark.plasma
