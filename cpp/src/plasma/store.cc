@@ -433,6 +433,7 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
                                       &entry->offset);
       if (entry->pointer) {
         entry->state = ObjectState::PLASMA_CREATED;
+        entry->create_time = std::time(nullptr);
         eviction_policy_.ObjectCreated(object_id);
         AddToClientObjectIds(object_id, store_info_.objects[object_id].get(), client);
         evicted_ids.push_back(object_id);
@@ -464,7 +465,9 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
       } else {
         std::memcpy(evicted_entries[i]->pointer, evicted_data[i].data(), evicted_data[i].size());
       }
-      SealObject(evicted_ids[i], &digest[0]);
+      evicted_entries[i]->state = ObjectState::PLASMA_SEALED;
+      std::memcpy(&evicted_entries[i]->digest[0], &digest[0], kDigestSize);
+      evicted_entries[i]->construct_duration = std::time(nullptr) - evicted_entries[i]->create_time;
       PlasmaObject_init(&get_req->objects[evicted_ids[i]], evicted_entries[i]);
       get_req->num_satisfied += 1;
     }
