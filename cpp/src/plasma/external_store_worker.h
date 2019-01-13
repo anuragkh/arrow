@@ -14,7 +14,7 @@
 #include "external_store.h"
 
 #define MEMCPY_PARALLELISM      4
-#define MAX_ENQUEUE             32
+#define PER_THREAD_QUEUE_SIZE   32
 #define OBJECT_SIZE_THRESHOLD   (1024 * 1024)
 #define MEMCPY_BLOCK_SIZE       64
 
