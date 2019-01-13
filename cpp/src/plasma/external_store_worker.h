@@ -22,17 +22,17 @@ namespace plasma {
 
 // ==== The external store worker ====
 //
-/// The worker maintains a thread pool internally for servicing un-eviction
-/// requests. All Get requests are enqueued, and serviced by multiple
-/// worker threads. All Put requests are serviced by the calling thread directly.
-/// The worker interface ensures thread-safe access to the external store.
+/// The worker maintains a worker thread internally for servicing Get requests.
+// All Get requests are enqueued, and periodically serviced by the worker
+// thread. All Put requests are serviced by the calling thread directly.
+// The worker interface ensures thread-safe access to the external store.
 
 class ExternalStoreWorker {
  public:
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                      const std::string &external_store_endpoint,
-                      const std::string &plasma_store_socket,
-                      size_t parallelism);
+                        const std::string &external_store_endpoint,
+                        const std::string &plasma_store_socket,
+                        size_t parallelism);
 
   ~ExternalStoreWorker();
 
@@ -41,7 +41,7 @@ class ExternalStoreWorker {
   /// \return True if the external store is valid, false otherwise.
   bool IsValid() const;
 
-  /// Put objects in the external store.
+  /// Put an object in the external store.
   ///
   /// \param object_ids The IDs of the objects to put.
   /// \param object_data The object data to put.
@@ -52,8 +52,8 @@ class ExternalStoreWorker {
   ///
   /// \param object_ids The IDs of the objects to get.
   /// \param object_data[out] The object data to get.
-  void Get(const std::vector<ObjectID> &object_ids,
-           std::vector<std::string> &object_data);
+  void ParallelGet(const std::vector<ObjectID> &object_ids,
+                   std::vector<std::string> &object_data);
 
   /// Compy memory in parallel if data size is large enough
   ///
@@ -88,46 +88,40 @@ class ExternalStoreWorker {
                          const ObjectID *ids,
                          const std::string *data);
 
-  /// Get objects from the external store.
-  ///
-  /// \param handle External store handle
-  /// \param object_ids The IDs of the objects to get.
-  /// \param object_data[out] The object data to get.
-  void Get(std::shared_ptr<ExternalStoreHandle> handle,
-           const std::vector<ObjectID> &object_ids,
-           std::vector<std::string> &object_data);
+  /// Read a chunk of objects from external store. To be used as a task
+  /// for a thread pool.
+  static Status GetChunk(std::shared_ptr<ExternalStoreHandle> handle,
+                         size_t num_objects,
+                         const ObjectID *ids,
+                         std::string *data);
 
   /// Contains the logic for the worker thread.
-  void DoWork(size_t thread_id);
+  void DoWork();
 
   /// Get objects from external store and writes it back to plasma store.
   ///
   /// \param object_ids The object IDs to get.
   /// \return The return status.
-  void WriteToPlasma(std::shared_ptr<PlasmaClient> client,
-                     const std::vector<ObjectID> &object_ids,
-                     const std::vector<std::string> &data);
+  void ParallelWriteToPlasma(const std::vector<ObjectID> &object_ids, const std::vector<std::string> &data);
 
   /// Returns a client to the plasma store, creating one if not already initialized.
   ///
   /// @return A client to the plasma store.
-  std::shared_ptr<PlasmaClient> Client(size_t thread_id);
+  std::shared_ptr<PlasmaClient> Client();
 
   // Whether or not plasma is backed by external store
   bool valid_;
 
   // Plasma store connection
   std::string plasma_store_socket_;
-  std::vector<std::shared_ptr<PlasmaClient>> plasma_clients_;
+  std::shared_ptr<PlasmaClient> plasma_client_;
 
   // External Store handles
   size_t parallelism_;
-  std::shared_ptr<ExternalStoreHandle> sync_handle_;
-  std::vector<std::shared_ptr<ExternalStoreHandle>> read_handles_;
-  std::vector<std::shared_ptr<ExternalStoreHandle>> write_handles_;
+  std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
   // Worker thread
-  std::vector<std::thread> thread_pool_;
+  std::thread worker_thread_;
   std::mutex tasks_mutex_;
   std::condition_variable tasks_cv_;
   bool terminate_;
@@ -137,11 +131,11 @@ class ExternalStoreWorker {
   std::vector<ObjectID> object_ids_;
 
   // External store read/write statistics
-  std::atomic<size_t> num_writes_;
-  std::atomic<size_t> num_bytes_written_;
-  std::atomic<size_t> num_reads_not_found_;
-  std::atomic<size_t> num_reads_;
-  std::atomic<size_t> num_bytes_read_;
+  size_t num_writes_;
+  size_t num_bytes_written_;
+  size_t num_reads_not_found_;
+  size_t num_reads_;
+  size_t num_bytes_read_;
 };
 
 }

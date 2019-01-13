@@ -471,7 +471,7 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
   if (!evicted_ids.empty()) {
     unsigned char digest[kDigestSize];
     std::vector<std::string> evicted_data;
-    external_store_worker_.Get(evicted_ids, evicted_data);
+    external_store_worker_.ParallelGet(evicted_ids, evicted_data);
     for (size_t i = 0; i < evicted_ids.size(); ++i) {
       ARROW_CHECK(evicted_entries[i]->pointer != nullptr);
       // Write object data into the allocated memory.
