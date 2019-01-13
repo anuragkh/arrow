@@ -233,7 +233,7 @@ void ExternalStoreWorker::ParallelWriteToPlasma(const std::vector<ObjectID> &obj
     ParallelMemcpy(object_data->mutable_data(),
                    reinterpret_cast<const uint8_t *>(data[i].data()),
                    static_cast<size_t>(data_size));
-    ARROW_CHECK_OK(client->Seal(object_ids.at(i)));
+    ARROW_CHECK_OK(client->SealWithoutNotification(object_ids.at(i)));
     ARROW_CHECK_OK(client->Release(object_ids.at(i)));
     num_reads_++;
   }
