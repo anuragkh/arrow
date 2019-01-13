@@ -12,19 +12,27 @@
 #include "common.h"
 #include "external_store.h"
 
+#define MEMCPY_PARALLELISM      4
+#define PER_THREAD_QUEUE_SIZE   32
+#define OBJECT_SIZE_THRESHOLD   (1024 * 1024)
+#define MEMCPY_BLOCK_SIZE       64
+
 namespace plasma {
 
 // ==== The external store worker ====
 //
-// The worker services external store Get and Put requests using multiple
-// threads. The worker interface ensures thread-safe access to the external store.
+/// The worker maintains a worker thread internally for servicing Get requests.
+// All Get requests are enqueued, and periodically serviced by the worker
+// thread. All Put requests are serviced by the calling thread directly.
+// The worker interface ensures thread-safe access to the external store.
 
 #define READ_WRITE_PARALLELISM  1
 
 class ExternalStoreWorker {
  public:
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                      const std::string &external_store_endpoint);
+                      const std::string &external_store_endpoint,
+                      const std::string &plasma_store_socket);
 
   ~ExternalStoreWorker();
 
@@ -37,18 +45,40 @@ class ExternalStoreWorker {
   ///
   /// \param object_ids The IDs of the objects to put.
   /// \param object_data The object data to put.
-  /// \param object_metadata The object metadata to put.
   void ParallelPut(const std::vector<ObjectID> &object_ids,
                    const std::vector<std::string> &object_data);
 
+  /// Get an object from the external store.
+  ///
+  /// \param object_ids The IDs of the objects to get.
+  /// \param object_data[out] The object data to get.
   void ParallelGet(const std::vector<ObjectID> &object_ids,
                    std::vector<std::string> &object_data);
 
-  // Reset Counters
+  /// Compy memory in parallel if data size is large enough
+  ///
+  /// @param dst Destination memory buffer
+  /// @param src Source memory buffer
+  /// @param n Number of bytes to copy
+  void ParallelMemcpy(uint8_t *dst, const uint8_t *src, size_t n);
+
+  /// Enqueue an un-evict request; if the request is successfully enqueued, the
+  /// worker thread processes the request, reads the object from external store
+  /// and writes it back to plasma.
+  ///
+  /// \param object_id The object ID corresponding to the un-evict request.
+  /// \return True if the request is enqueued successfully, false if there are
+  ///         too many requests enqueued already.
+  bool EnqueueUnevictRequest(const ObjectID &object_id);
+
+  /// Reset Counters
   void ResetCounters();
 
-  /// Print statistics
+  /// Print Counters
   void PrintCounters();
+
+  /// Shutdown the external store worker.
+  void Shutdown();
 
  private:
   /// Write a chunk of objects to external store. To be used as a task
@@ -65,10 +95,38 @@ class ExternalStoreWorker {
                                            const ObjectID *ids,
                                            std::string *data);
 
+  /// Contains the logic for the worker thread.
+  void DoWork();
+
+  /// Get objects from external store and writes it back to plasma store.
+  ///
+  /// \param object_ids The object IDs to get.
+  /// \return The return status.
+  void ParallelWriteToPlasma(const std::vector<ObjectID> &object_ids, const std::vector<std::string> &data);
+
+  /// Returns a client to the plasma store, creating one if not already initialized.
+  ///
+  /// @return A client to the plasma store.
+  std::shared_ptr<PlasmaClient> Client();
+
   bool valid_;
   std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
-  // Eviction statistics
+  // Plasma store connection
+  std::string plasma_store_socket_;
+  std::shared_ptr<PlasmaClient> plasma_client_;
+
+  // Worker thread
+  std::thread worker_thread_;
+  std::mutex tasks_mutex_;
+  std::condition_variable tasks_cv_;
+  bool terminate_;
+  bool stopped_;
+
+  // Enqueued object IDs
+  std::vector<ObjectID> object_ids_;
+
+  // External store read/write statistics
   size_t num_writes_;
   size_t num_bytes_written_;
   size_t num_reads_not_found_;
