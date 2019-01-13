@@ -103,7 +103,7 @@ void ExternalStoreWorker::Get(const std::vector<ObjectID> &object_ids,
 bool ExternalStoreWorker::EnqueueUnevictRequest(const ObjectID &object_id) {
   {
     std::unique_lock<std::mutex> lock(tasks_mutex_);
-    if (object_ids_.size() >= (parallelism_ * PER_THREAD_QUEUE_SIZE)) {
+    if (object_ids_.size() >= MAX_ENQUEUE) {
       return false;
     }
     object_ids_.push_back(object_id);
@@ -207,9 +207,9 @@ void ExternalStoreWorker::WriteToPlasma(std::shared_ptr<PlasmaClient> client,
       continue;
     }
     ARROW_CHECK_OK(std::move(s));
-    ParallelMemcpy(object_data->mutable_data(),
-                   reinterpret_cast<const uint8_t *>(data[i].data()),
-                   static_cast<size_t>(data_size));
+    std::memcpy(object_data->mutable_data(),
+                reinterpret_cast<const uint8_t *>(data[i].data()),
+                static_cast<size_t>(data_size));
     ARROW_CHECK_OK(client->SealWithoutNotification(object_ids.at(i)));
     ARROW_CHECK_OK(client->Release(object_ids.at(i)));
     num_reads_++;
