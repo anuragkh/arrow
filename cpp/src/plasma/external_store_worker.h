@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <condition_variable>
+#include <future>
 #include <iostream>
 #include <mutex>
 #include <queue>
