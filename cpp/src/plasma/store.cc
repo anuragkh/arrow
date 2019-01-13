@@ -439,6 +439,7 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
         add_placeholder = true;
       } else {
         // If we fail to enqueue un-eviction request to separate thread, do it synchronously
+        ARROW_LOG(INFO) << "Asynchronous un-evict failed, falling back to synchronous.";
         entry->pointer = AllocateMemory(0, /* Un-eviction is only supported for device_num = 0 */
                                         static_cast<size_t>(entry->data_size + entry->metadata_size),
                                         &entry->fd,
@@ -547,7 +548,7 @@ ObjectStatus PlasmaStore::ContainsObject(const ObjectID& object_id) {
 }
 
 // Seal an object that has been created in the hash table.
-void PlasmaStore::SealObject(const ObjectID& object_id, unsigned char digest[]) {
+void PlasmaStore::SealObject(const ObjectID &object_id, unsigned char digest[], bool notify) {
   ARROW_LOG(DEBUG) << "sealing object " << object_id.hex();
   auto entry = GetObjectTableEntry(&store_info_, object_id);
   ARROW_CHECK(entry != nullptr);
@@ -558,13 +559,16 @@ void PlasmaStore::SealObject(const ObjectID& object_id, unsigned char digest[]) 
   std::memcpy(&entry->digest[0], &digest[0], kDigestSize);
   // Set object construction duration.
   entry->construct_duration = std::time(nullptr) - entry->create_time;
-  // Inform all subscribers that a new object has been sealed.
-  ObjectInfoT info;
-  info.object_id = object_id.binary();
-  info.data_size = entry->data_size;
-  info.metadata_size = entry->metadata_size;
-  info.digest = std::string(reinterpret_cast<char*>(&digest[0]), kDigestSize);
-  PushNotification(&info);
+
+  if (notify) {
+    // Inform all subscribers that a new object has been sealed.
+    ObjectInfoT info;
+    info.object_id = object_id.binary();
+    info.data_size = entry->data_size;
+    info.metadata_size = entry->metadata_size;
+    info.digest = std::string(reinterpret_cast<char*>(&digest[0]), kDigestSize);
+    PushNotification(&info);
+  }
 
   // Update all get requests that involve this object.
   UpdateObjectGetRequests(object_id);
@@ -660,7 +664,10 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   }
 
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
+    std::time_t begin = std::time(nullptr);
     external_store_worker_.ParallelPut(object_ids, object_data);
+    std::time_t eviction_time = std::time(nullptr) - begin;
+    ARROW_LOG(INFO) << "Evicted " << object_ids.size() << " objects in " << eviction_time << "s";
   }
 }
 
@@ -909,7 +916,7 @@ Status PlasmaStore::ProcessMessage(Client* client) {
         // Write the inlined data and metadata into the allocated object.
         std::memcpy(entry->pointer, data.data(), data.size());
         std::memcpy(entry->pointer + data.size(), metadata.data(), metadata.size());
-        SealObject(object_id, &digest[0]);
+        SealObject(object_id, &digest[0], false);
         // Remove the client from the object's array of clients because the
         // object is not being used by any client. The client was added to the
         // object's array of clients in CreateObject. This is analogous to the
@@ -958,8 +965,9 @@ Status PlasmaStore::ProcessMessage(Client* client) {
     } break;
     case fb::MessageType::PlasmaSealRequest: {
       unsigned char digest[kDigestSize];
-      RETURN_NOT_OK(ReadSealRequest(input, input_size, &object_id, &digest[0]));
-      SealObject(object_id, &digest[0]);
+      bool notify;
+      RETURN_NOT_OK(ReadSealRequest(input, input_size, &object_id, &digest[0], &notify));
+      SealObject(object_id, &digest[0], notify);
     } break;
     case fb::MessageType::PlasmaEvictRequest: {
       // This code path should only be used for testing.
