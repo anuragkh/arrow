@@ -26,13 +26,12 @@ namespace plasma {
 // thread. All Put requests are serviced by the calling thread directly.
 // The worker interface ensures thread-safe access to the external store.
 
-#define READ_WRITE_PARALLELISM  1
-
 class ExternalStoreWorker {
  public:
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                      const std::string &external_store_endpoint,
-                      const std::string &plasma_store_socket);
+                        const std::string &external_store_endpoint,
+                        const std::string &plasma_store_socket,
+                        size_t parallelism);
 
   ~ExternalStoreWorker();
 
@@ -83,17 +82,17 @@ class ExternalStoreWorker {
  private:
   /// Write a chunk of objects to external store. To be used as a task
   /// for a thread pool.
-  static Status WriteChunkToExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
-                                          size_t num_objects,
-                                          const ObjectID *ids,
-                                          const std::string *data);
+  static Status PutChunk(std::shared_ptr<ExternalStoreHandle> handle,
+                         size_t num_objects,
+                         const ObjectID *ids,
+                         const std::string *data);
 
   /// Read a chunk of objects from external store. To be used as a task
   /// for a thread pool.
-  static Status ReadChunkFromExternalStore(std::shared_ptr<ExternalStoreHandle> handle,
-                                           size_t num_objects,
-                                           const ObjectID *ids,
-                                           std::string *data);
+  static Status GetChunk(std::shared_ptr<ExternalStoreHandle> handle,
+                         size_t num_objects,
+                         const ObjectID *ids,
+                         std::string *data);
 
   /// Contains the logic for the worker thread.
   void DoWork();
@@ -109,12 +108,16 @@ class ExternalStoreWorker {
   /// @return A client to the plasma store.
   std::shared_ptr<PlasmaClient> Client();
 
+  // Whether or not plasma is backed by external store
   bool valid_;
-  std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
   // Plasma store connection
   std::string plasma_store_socket_;
   std::shared_ptr<PlasmaClient> plasma_client_;
+
+  // External Store handles
+  size_t parallelism_;
+  std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
 
   // Worker thread
   std::thread worker_thread_;
