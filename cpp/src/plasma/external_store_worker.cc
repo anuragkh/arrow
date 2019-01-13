@@ -21,7 +21,7 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
       num_bytes_read_(0) {
   if (external_store) {
     valid_ = true;
-    for (int i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
+    for (size_t i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
       external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
     worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
@@ -54,18 +54,18 @@ bool ExternalStoreWorker::IsValid() const {
 
 void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
                                       const std::vector<std::string> &object_data) {
-  int num_objects = static_cast<int>(object_ids.size());
+  size_t num_objects = object_ids.size();
   const ObjectID *ids_ptr = &object_ids[0];
   const std::string *data_ptr = &object_data[0];
 
   if (parallelism_ > 1) {
-    int num_chunks = std::min((int)parallelism_, num_objects);
-    int chunk_size = num_objects / num_chunks;
-    int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
+    size_t num_chunks = std::min(parallelism_, num_objects);
+    size_t chunk_size = num_objects / num_chunks;
+    size_t last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
     std::vector<std::future<Status>> futures;
-    for (int i = 0; i < num_chunks; ++i) {
-      auto chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
+    for (size_t i = 0; i < num_chunks; ++i) {
+      size_t chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
       futures.push_back(std::async(&ExternalStoreWorker::PutChunk,
                                    external_store_handles_[parallelism_ + i],
                                    chunk_size_i,
@@ -93,17 +93,17 @@ void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
                                       std::vector<std::string> &object_data) {
   object_data.resize(object_ids.size());
 
-  int num_objects = static_cast<int>(object_ids.size());
+  size_t num_objects = object_ids.size();
   const ObjectID *ids_ptr = &object_ids[0];
   std::string *data_ptr = &object_data[0];
   if (parallelism_ > 1) {
-    int num_chunks = std::min((int)parallelism_, num_objects);
-    int chunk_size = num_objects / num_chunks;
-    int last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
+    size_t num_chunks = std::min(parallelism_, num_objects);
+    size_t chunk_size = num_objects / num_chunks;
+    size_t last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
     std::vector<std::future<Status>> futures;
-    for (int i = 0; i < num_chunks; ++i) {
-      auto chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
+    for (size_t i = 0; i < num_chunks; ++i) {
+      size_t chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
       futures.push_back(std::async(&ExternalStoreWorker::GetChunk,
                                    external_store_handles_[i],
                                    chunk_size_i,
