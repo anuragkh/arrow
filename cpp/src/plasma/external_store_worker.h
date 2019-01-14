@@ -41,19 +41,26 @@ class ExternalStoreWorker {
   /// \return True if the external store is valid, false otherwise.
   bool IsValid() const;
 
-  /// Put an object in the external store.
+  /// Put objects in the external store; uses multiple threads.
   ///
   /// \param object_ids The IDs of the objects to put.
   /// \param object_data The object data to put.
   void ParallelPut(const std::vector<ObjectID> &object_ids,
                    const std::vector<std::string> &object_data);
 
-  /// Get an object from the external store.
+  /// Get objects from the external store; uses multiple threads.
   ///
   /// \param object_ids The IDs of the objects to get.
   /// \param object_data[out] The object data to get.
   void ParallelGet(const std::vector<ObjectID> &object_ids,
                    std::vector<std::string> &object_data);
+
+  /// Get objects from the external store.
+  ///
+  /// \param object_ids The IDs of the objects to get.
+  /// \param object_data[out] The object data to get.
+  void SequentialGet(const std::vector<ObjectID> &object_ids,
+                     std::vector<std::string> &object_data);
 
   /// Compy memory in parallel if data size is large enough
   ///
@@ -118,7 +125,9 @@ class ExternalStoreWorker {
 
   // External Store handles
   size_t parallelism_;
-  std::vector<std::shared_ptr<ExternalStoreHandle>> external_store_handles_;
+  std::shared_ptr<ExternalStoreHandle> sync_handle_;
+  std::vector<std::shared_ptr<ExternalStoreHandle>> read_handles_;
+  std::vector<std::shared_ptr<ExternalStoreHandle>> write_handles_;
 
   // Worker thread
   std::thread worker_thread_;
