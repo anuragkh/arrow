@@ -30,9 +30,9 @@ namespace plasma {
 class ExternalStoreWorker {
  public:
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
-                        const std::string &external_store_endpoint,
-                        const std::string &plasma_store_socket,
-                        size_t parallelism);
+                      const std::string &external_store_endpoint,
+                      const std::string &plasma_store_socket,
+                      size_t parallelism);
 
   ~ExternalStoreWorker();
 
@@ -140,11 +140,11 @@ class ExternalStoreWorker {
   std::vector<ObjectID> object_ids_;
 
   // External store read/write statistics
-  size_t num_writes_;
-  size_t num_bytes_written_;
-  size_t num_reads_not_found_;
-  size_t num_reads_;
-  size_t num_bytes_read_;
+  std::atomic_size_t num_writes_;
+  std::atomic_size_t num_bytes_written_;
+  std::atomic_size_t num_reads_not_found_;
+  std::atomic_size_t num_reads_;
+  std::atomic_size_t num_bytes_read_;
 };
 
 }
