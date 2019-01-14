@@ -21,8 +21,10 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
       num_bytes_read_(0) {
   if (external_store) {
     valid_ = true;
-    for (size_t i = 0; i < parallelism_ * 2; ++i) { // x2 handles for puts
-      external_store_handles_.push_back(external_store->Connect(external_store_endpoint));
+    sync_handle_ = external_store->Connect(external_store_endpoint);
+    for (size_t i = 0; i < parallelism_; ++i) {
+      read_handles_.push_back(external_store->Connect(external_store_endpoint));
+      write_handles_.push_back(external_store->Connect(external_store_endpoint));
     }
     worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
   }
@@ -58,8 +60,8 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   const ObjectID *ids_ptr = &object_ids[0];
   const std::string *data_ptr = &object_data[0];
 
-  if (parallelism_ > 1) {
-    size_t num_chunks = std::min(parallelism_, num_objects);
+  size_t num_chunks = std::min(parallelism_, num_objects);
+  if (num_chunks > 1) {
     size_t chunk_size = num_objects / num_chunks;
     size_t last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
@@ -67,7 +69,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
     for (size_t i = 0; i < num_chunks; ++i) {
       size_t chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
       futures.push_back(std::async(&ExternalStoreWorker::PutChunk,
-                                   external_store_handles_[parallelism_ + i],
+                                   write_handles_[i],
                                    chunk_size_i,
                                    ids_ptr + i * chunk_size,
                                    data_ptr + i * chunk_size));
@@ -77,7 +79,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
       ARROW_CHECK_OK(fut.get());
     }
   } else {
-    ARROW_CHECK_OK(ExternalStoreWorker::PutChunk(external_store_handles_.back(),
+    ARROW_CHECK_OK(ExternalStoreWorker::PutChunk(write_handles_.front(),
                                                  num_objects,
                                                  ids_ptr,
                                                  data_ptr));
@@ -89,6 +91,23 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
   }
 }
 
+void ExternalStoreWorker::SequentialGet(const std::vector<ObjectID> &object_ids,
+                                        std::vector<std::string> &object_data) {
+  object_data.resize(object_ids.size());
+  ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(sync_handle_,
+                                               object_ids.size(),
+                                               &object_ids[0],
+                                               &object_data[0]));
+  for (const auto &i : object_data) {
+    if (i.empty()) {
+      num_reads_not_found_++;
+      continue;
+    }
+    num_reads_++;
+    num_bytes_read_ += i.size();
+  }
+}
+
 void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
                                       std::vector<std::string> &object_data) {
   object_data.resize(object_ids.size());
@@ -96,8 +115,8 @@ void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
   size_t num_objects = object_ids.size();
   const ObjectID *ids_ptr = &object_ids[0];
   std::string *data_ptr = &object_data[0];
-  if (parallelism_ > 1) {
-    size_t num_chunks = std::min(parallelism_, num_objects);
+  size_t num_chunks = std::min(parallelism_, num_objects);
+  if (num_chunks > 1) {
     size_t chunk_size = num_objects / num_chunks;
     size_t last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
 
@@ -105,7 +124,7 @@ void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
     for (size_t i = 0; i < num_chunks; ++i) {
       size_t chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
       futures.push_back(std::async(&ExternalStoreWorker::GetChunk,
-                                   external_store_handles_[i],
+                                   read_handles_[i],
                                    chunk_size_i,
                                    ids_ptr + i * chunk_size,
                                    data_ptr + i * chunk_size));
@@ -115,7 +134,7 @@ void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
       ARROW_CHECK_OK(fut.get());
     }
   } else {
-    ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(external_store_handles_.front(),
+    ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(read_handles_.front(),
                                                  num_objects,
                                                  ids_ptr,
                                                  data_ptr));
