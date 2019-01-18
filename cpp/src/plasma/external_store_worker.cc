@@ -10,7 +10,7 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
                                          const std::string &plasma_store_socket,
                                          size_t parallelism)
     : plasma_store_socket_(plasma_store_socket),
-      plasma_client_(nullptr),
+      plasma_clients_(parallelism, nullptr),
       parallelism_(parallelism),
       terminate_(false),
       stopped_(false),
@@ -25,8 +25,8 @@ ExternalStoreWorker::ExternalStoreWorker(std::shared_ptr<ExternalStore> external
     for (size_t i = 0; i < parallelism_; ++i) {
       read_handles_.push_back(external_store->Connect(external_store_endpoint));
       write_handles_.push_back(external_store->Connect(external_store_endpoint));
+      thread_pool_.emplace_back(&ExternalStoreWorker::DoWork, this, i);
     }
-    worker_thread_ = std::thread(&ExternalStoreWorker::DoWork, this);
   }
 }
 
@@ -44,8 +44,10 @@ void ExternalStoreWorker::Shutdown() {
   }
 
   tasks_cv_.notify_all();
-  if (worker_thread_.joinable()) {
-    worker_thread_.join();
+  for (std::thread &thread : thread_pool_) {
+    if (thread.joinable()) {
+      thread.join();
+    }
   }
   stopped_ = true;
 }
@@ -54,8 +56,12 @@ bool ExternalStoreWorker::IsValid() const {
   return valid_;
 }
 
-void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
-                                      const std::vector<std::string> &object_data) {
+size_t ExternalStoreWorker::Parallelism() {
+  return parallelism_;
+}
+
+void ExternalStoreWorker::Put(const std::vector<ObjectID> &object_ids,
+                              const std::vector<std::string> &object_data) {
   size_t num_objects = object_ids.size();
   const ObjectID *ids_ptr = &object_ids[0];
   const std::string *data_ptr = &object_data[0];
@@ -93,61 +99,7 @@ void ExternalStoreWorker::ParallelPut(const std::vector<ObjectID> &object_ids,
 
 void ExternalStoreWorker::SequentialGet(const std::vector<ObjectID> &object_ids,
                                         std::vector<std::string> &object_data) {
-  object_data.resize(object_ids.size());
-  ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(sync_handle_,
-                                               object_ids.size(),
-                                               &object_ids[0],
-                                               &object_data[0]));
-  for (const auto &i : object_data) {
-    if (i.empty()) {
-      num_reads_not_found_++;
-      continue;
-    }
-    num_reads_++;
-    num_bytes_read_ += i.size();
-  }
-}
-
-void ExternalStoreWorker::ParallelGet(const std::vector<ObjectID> &object_ids,
-                                      std::vector<std::string> &object_data) {
-  object_data.resize(object_ids.size());
-
-  size_t num_objects = object_ids.size();
-  const ObjectID *ids_ptr = &object_ids[0];
-  std::string *data_ptr = &object_data[0];
-  size_t num_chunks = std::min(parallelism_, num_objects);
-  if (num_chunks > 1) {
-    size_t chunk_size = num_objects / num_chunks;
-    size_t last_chunk_size = num_objects - (chunk_size * (num_chunks - 1));
-
-    std::vector<std::future<Status>> futures;
-    for (size_t i = 0; i < num_chunks; ++i) {
-      size_t chunk_size_i = i == (num_chunks - 1) ? last_chunk_size : chunk_size;
-      futures.push_back(std::async(&ExternalStoreWorker::GetChunk,
-                                   read_handles_[i],
-                                   chunk_size_i,
-                                   ids_ptr + i * chunk_size,
-                                   data_ptr + i * chunk_size));
-    }
-
-    for (auto &fut: futures) {
-      ARROW_CHECK_OK(fut.get());
-    }
-  } else {
-    ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(read_handles_.front(),
-                                                 num_objects,
-                                                 ids_ptr,
-                                                 data_ptr));
-  }
-
-  for (const auto &i : object_data) {
-    if (i.empty()) {
-      num_reads_not_found_++;
-      continue;
-    }
-    num_reads_++;
-    num_bytes_read_ += i.size();
-  }
+  Get(sync_handle_, object_ids, object_data);
 }
 
 bool ExternalStoreWorker::EnqueueUnevictRequest(const ObjectID &object_id) {
@@ -165,7 +117,7 @@ bool ExternalStoreWorker::EnqueueUnevictRequest(const ObjectID &object_id) {
   return true;
 }
 
-void ExternalStoreWorker::ParallelMemcpy(uint8_t *dst, const uint8_t *src, size_t n) {
+void ExternalStoreWorker::CopyBuffer(uint8_t *dst, const uint8_t *src, size_t n) {
   if (n > OBJECT_SIZE_THRESHOLD) {
     arrow::internal::parallel_memcopy(dst, src, static_cast<int64_t>(n), MEMCPY_BLOCK_SIZE, MEMCPY_PARALLELISM);
   } else {
@@ -191,6 +143,24 @@ void ExternalStoreWorker::PrintCounters() {
   ARROW_LOG(INFO) << "Number of objects attempted to read, but not found: " << num_reads_not_found_;
 }
 
+void ExternalStoreWorker::Get(std::shared_ptr<ExternalStoreHandle> handle,
+                              const std::vector<ObjectID> &object_ids,
+                              std::vector<std::string> &object_data) {
+  object_data.resize(object_ids.size());
+  ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(handle,
+                                               object_ids.size(),
+                                               &object_ids[0],
+                                               &object_data[0]));
+  for (const auto &i : object_data) {
+    if (i.empty()) {
+      num_reads_not_found_++;
+      continue;
+    }
+    num_reads_++;
+    num_bytes_read_ += i.size();
+  }
+}
+
 Status ExternalStoreWorker::PutChunk(std::shared_ptr<ExternalStoreHandle> handle,
                                      size_t num_objects,
                                      const ObjectID *ids,
@@ -205,7 +175,7 @@ Status ExternalStoreWorker::GetChunk(std::shared_ptr<ExternalStoreHandle> handle
   return handle->Get(num_objects, ids, data);
 }
 
-void ExternalStoreWorker::DoWork() {
+void ExternalStoreWorker::DoWork(size_t thread_id) {
   while (true) {
     std::vector<ObjectID> object_ids;
     {
@@ -229,14 +199,14 @@ void ExternalStoreWorker::DoWork() {
     tasks_cv_.notify_one();
 
     std::vector<std::string> object_data;
-    ParallelGet(object_ids, object_data);
-    ParallelWriteToPlasma(object_ids, object_data);
+    Get(read_handles_[thread_id], object_ids, object_data);
+    WriteToPlasma(Client(thread_id), object_ids, object_data);
   }
 }
 
-void ExternalStoreWorker::ParallelWriteToPlasma(const std::vector<ObjectID> &object_ids,
-                                                const std::vector<std::string> &data) {
-  auto client = Client();
+void ExternalStoreWorker::WriteToPlasma(std::shared_ptr<PlasmaClient> client,
+                                        const std::vector<ObjectID> &object_ids,
+                                        const std::vector<std::string> &data) {
   for (size_t i = 0; i < object_ids.size(); ++i) {
     if (data.at(i).empty()) {
       continue;
@@ -249,21 +219,21 @@ void ExternalStoreWorker::ParallelWriteToPlasma(const std::vector<ObjectID> &obj
       continue;
     }
     ARROW_CHECK_OK(std::move(s));
-    ParallelMemcpy(object_data->mutable_data(),
-                   reinterpret_cast<const uint8_t *>(data[i].data()),
-                   static_cast<size_t>(data_size));
+    CopyBuffer(object_data->mutable_data(),
+               reinterpret_cast<const uint8_t *>(data[i].data()),
+               static_cast<size_t>(data_size));
     ARROW_CHECK_OK(client->SealWithoutNotification(object_ids.at(i)));
     ARROW_CHECK_OK(client->Release(object_ids.at(i)));
     num_reads_++;
   }
 }
 
-std::shared_ptr<PlasmaClient> ExternalStoreWorker::Client() {
-  if (plasma_client_ == nullptr) {
-    plasma_client_ = std::make_shared<PlasmaClient>();
-    ARROW_CHECK_OK(plasma_client_->Connect(plasma_store_socket_, ""));
+std::shared_ptr<PlasmaClient> ExternalStoreWorker::Client(size_t thread_id) {
+  if (plasma_clients_[thread_id] == nullptr) {
+    plasma_clients_[thread_id] = std::make_shared<PlasmaClient>();
+    ARROW_CHECK_OK(plasma_clients_[thread_id]->Connect(plasma_store_socket_, ""));
   }
-  return plasma_client_;
+  return plasma_clients_[thread_id];
 }
 
 }
