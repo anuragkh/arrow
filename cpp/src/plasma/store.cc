@@ -435,11 +435,11 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
       entry->state = ObjectState::PLASMA_UNEVICTING;
 
       // First try to delegate uneviction to external store worker and return without waiting
-      if (external_store_worker_.EnqueueUnevictRequest(object_id)) {
+      if (external_store_worker_.Parallelism() > 0 && external_store_worker_.EnqueueUnevictRequest(object_id)) {
         add_placeholder = true;
       } else {
         // If we fail to enqueue un-eviction request to separate thread, do it synchronously
-        ARROW_LOG(INFO) << "Asynchronous un-evict failed, falling back to synchronous.";
+        ARROW_LOG(INFO) << "Asynchronous un-evict failed or disabled, falling back to synchronous.";
         entry->pointer = AllocateMemory(0, /* Un-eviction is only supported for device_num = 0 */
                                         static_cast<size_t>(entry->data_size + entry->metadata_size),
                                         &entry->fd,
@@ -475,9 +475,9 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
     for (size_t i = 0; i < evicted_ids.size(); ++i) {
       ARROW_CHECK(evicted_entries[i]->pointer != nullptr);
       // Write object data into the allocated memory.
-      external_store_worker_.ParallelMemcpy(evicted_entries[i]->pointer,
-                                            reinterpret_cast<const uint8_t *>(evicted_data[i].data()),
-                                            evicted_data[i].size());
+      external_store_worker_.CopyBuffer(evicted_entries[i]->pointer,
+                                        reinterpret_cast<const uint8_t *>(evicted_data[i].data()),
+                                        evicted_data[i].size());
       evicted_entries[i]->state = ObjectState::PLASMA_SEALED;
       std::memcpy(&evicted_entries[i]->digest[0], &digest[0], kDigestSize);
       evicted_entries[i]->construct_duration = std::time(nullptr) - evicted_entries[i]->create_time;
@@ -665,7 +665,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
 
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
     std::time_t begin = std::time(nullptr);
-    external_store_worker_.ParallelPut(object_ids, object_data);
+    external_store_worker_.Put(object_ids, object_data);
     std::time_t eviction_time = std::time(nullptr) - begin;
     ARROW_LOG(INFO) << "Evicted " << object_ids.size() << " objects in " << eviction_time << "s";
   }

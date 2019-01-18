@@ -41,19 +41,17 @@ class ExternalStoreWorker {
   /// \return True if the external store is valid, false otherwise.
   bool IsValid() const;
 
-  /// Put objects in the external store; uses multiple threads.
+  /// Get the parallelism for the external store worker.
+  ///
+  /// \return The degree of parallelism for the external store worker.
+  size_t Parallelism();
+
+  /// Put objects in the external store.
   ///
   /// \param object_ids The IDs of the objects to put.
   /// \param object_data The object data to put.
-  void ParallelPut(const std::vector<ObjectID> &object_ids,
-                   const std::vector<std::string> &object_data);
-
-  /// Get objects from the external store; uses multiple threads.
-  ///
-  /// \param object_ids The IDs of the objects to get.
-  /// \param object_data[out] The object data to get.
-  void ParallelGet(const std::vector<ObjectID> &object_ids,
-                   std::vector<std::string> &object_data);
+  void Put(const std::vector<ObjectID> &object_ids,
+           const std::vector<std::string> &object_data);
 
   /// Get objects from the external store.
   ///
@@ -67,7 +65,7 @@ class ExternalStoreWorker {
   /// @param dst Destination memory buffer
   /// @param src Source memory buffer
   /// @param n Number of bytes to copy
-  void ParallelMemcpy(uint8_t *dst, const uint8_t *src, size_t n);
+  void CopyBuffer(uint8_t *dst, const uint8_t *src, size_t n);
 
   /// Enqueue an un-evict request; if the request is successfully enqueued, the
   /// worker thread processes the request, reads the object from external store
@@ -88,6 +86,10 @@ class ExternalStoreWorker {
   void Shutdown();
 
  private:
+  void Get(std::shared_ptr<ExternalStoreHandle> handle,
+           const std::vector<ObjectID> &object_ids,
+           std::vector<std::string> &object_data);
+
   /// Write a chunk of objects to external store. To be used as a task
   /// for a thread pool.
   static Status PutChunk(std::shared_ptr<ExternalStoreHandle> handle,
@@ -103,25 +105,27 @@ class ExternalStoreWorker {
                          std::string *data);
 
   /// Contains the logic for the worker thread.
-  void DoWork();
+  void DoWork(size_t thread_id);
 
   /// Get objects from external store and writes it back to plasma store.
   ///
   /// \param object_ids The object IDs to get.
   /// \return The return status.
-  void ParallelWriteToPlasma(const std::vector<ObjectID> &object_ids, const std::vector<std::string> &data);
+  void WriteToPlasma(std::shared_ptr<PlasmaClient> client,
+                     const std::vector<ObjectID> &object_ids,
+                     const std::vector<std::string> &data);
 
   /// Returns a client to the plasma store, creating one if not already initialized.
   ///
   /// @return A client to the plasma store.
-  std::shared_ptr<PlasmaClient> Client();
+  std::shared_ptr<PlasmaClient> Client(size_t thread_id);
 
   // Whether or not plasma is backed by external store
   bool valid_;
 
   // Plasma store connection
   std::string plasma_store_socket_;
-  std::shared_ptr<PlasmaClient> plasma_client_;
+  std::vector<std::shared_ptr<PlasmaClient>> plasma_clients_;
 
   // External Store handles
   size_t parallelism_;
@@ -130,7 +134,7 @@ class ExternalStoreWorker {
   std::vector<std::shared_ptr<ExternalStoreHandle>> write_handles_;
 
   // Worker thread
-  std::thread worker_thread_;
+  std::vector<std::thread> thread_pool_;
   std::mutex tasks_mutex_;
   std::condition_variable tasks_cv_;
   bool terminate_;
