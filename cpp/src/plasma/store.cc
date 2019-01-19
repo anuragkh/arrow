@@ -122,7 +122,10 @@ PlasmaStore::PlasmaStore(EventLoop *loop,
                          const std::string &external_store_endpoint,
                          size_t external_store_parallelism)
     : loop_(loop), eviction_policy_(&store_info_),
-      external_store_worker_(external_store, external_store_endpoint, socket_name, external_store_parallelism) {
+      external_store_worker_(std::move(external_store),
+          external_store_endpoint,
+          socket_name,
+          external_store_parallelism) {
   store_info_.memory_capacity = system_memory;
   store_info_.directory = directory;
   store_info_.hugepages_enabled = hugepages_enabled;
@@ -225,13 +228,16 @@ PlasmaError PlasmaStore::CreateObject(const ObjectID& object_id, int64_t data_si
   int fd = -1;
   int64_t map_size = 0;
   ptrdiff_t offset = 0;
-  uint8_t* pointer = AllocateMemory(device_num, data_size + metadata_size, &fd, &map_size, &offset);
+  uint8_t* pointer = AllocateMemory(device_num,
+                                    data_size + metadata_size,
+                                    &fd, &map_size, &offset);
   if (pointer == nullptr) {
     return PlasmaError::OutOfMemory;
   }
   if (!entry) {
+    auto ptr = new ObjectTableEntry();
     entry = store_info_.objects.emplace(object_id,
-        std::unique_ptr<ObjectTableEntry>(new ObjectTableEntry())).first->second.get();
+        std::unique_ptr<ObjectTableEntry>(ptr)).first->second.get();
     entry->data_size = data_size;
     entry->metadata_size = metadata_size;
   }
@@ -452,6 +458,11 @@ void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> 
           AddToClientObjectIds(object_id, store_info_.objects[object_id].get(), client);
           evicted_ids.push_back(object_id);
           evicted_entries.push_back(entry);
+        } else {
+          // We are out of memory an cannot allocate memory for this object.
+          // Change the state of the object back to PLASMA_EVICTED so some
+          // other request can try again.
+          entry->state = ObjectState::PLASMA_EVICTED;
         }
       }
     } else {

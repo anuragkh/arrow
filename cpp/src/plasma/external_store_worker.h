@@ -10,25 +10,25 @@
 #include <queue>
 #include <thread>
 
-#include "common.h"
-#include "external_store.h"
-
-#define MEMCPY_PARALLELISM      4
-#define PER_THREAD_QUEUE_SIZE   32
-#define OBJECT_SIZE_THRESHOLD   (1024 * 1024)
-#define MEMCPY_BLOCK_SIZE       64
+#include "plasma/common.h"
+#include "plasma/external_store.h"
 
 namespace plasma {
 
 // ==== The external store worker ====
 //
-/// The worker maintains a worker thread internally for servicing Get requests.
-// All Get requests are enqueued, and periodically serviced by the worker
-// thread. All Put requests are serviced by the calling thread directly.
+// The worker maintains a thread-pool internally for servicing Get requests.
+// All Get requests are enqueued, and periodically serviced by a worker
+// thread. All Put requests are serviced using multiple threads.
 // The worker interface ensures thread-safe access to the external store.
 
 class ExternalStoreWorker {
  public:
+  static const size_t kMemcpyParallelism = 4;
+  static const size_t kMaxEnqueue = 32;
+  static const size_t kObjectSizeThreshold = 1024 * 1024;
+  static const size_t kMemcpyBlockSize = 64;
+
   ExternalStoreWorker(std::shared_ptr<ExternalStore> external_store,
                       const std::string &external_store_endpoint,
                       const std::string &plasma_store_socket,
@@ -57,10 +57,11 @@ class ExternalStoreWorker {
   ///
   /// \param object_ids The IDs of the objects to get.
   /// \param object_data[out] The object data to get.
+  /// \return Status of the operation
   void SequentialGet(const std::vector<ObjectID> &object_ids,
                      std::vector<std::string> &object_data);
 
-  /// Compy memory in parallel if data size is large enough
+  /// Copy memory buffer in parallel if data size is large enough
   ///
   /// @param dst Destination memory buffer
   /// @param src Source memory buffer
@@ -76,9 +77,6 @@ class ExternalStoreWorker {
   ///         too many requests enqueued already.
   bool EnqueueUnevictRequest(const ObjectID &object_id);
 
-  /// Reset Counters
-  void ResetCounters();
-
   /// Print Counters
   void PrintCounters();
 
@@ -92,19 +90,21 @@ class ExternalStoreWorker {
 
   /// Write a chunk of objects to external store. To be used as a task
   /// for a thread pool.
+  ///
+  /// \param handle The external store handle.
+  /// \param num_objects Number of objects to write.
+  /// \param ids Array containing object IDs to write.
+  /// \param[out] data Output array which will contain data read from external
+  ///             store.
+  /// \return The return status.
   static Status PutChunk(std::shared_ptr<ExternalStoreHandle> handle,
                          size_t num_objects,
                          const ObjectID *ids,
                          const std::string *data);
 
-  /// Read a chunk of objects from external store. To be used as a task
-  /// for a thread pool.
-  static Status GetChunk(std::shared_ptr<ExternalStoreHandle> handle,
-                         size_t num_objects,
-                         const ObjectID *ids,
-                         std::string *data);
-
-  /// Contains the logic for the worker thread.
+  /// Contains the logic for a worker thread.
+  ///
+  /// @param thread_id The thread ID.
   void DoWork(size_t thread_id);
 
   /// Get objects from external store and writes it back to plasma store.
@@ -115,9 +115,11 @@ class ExternalStoreWorker {
                      const std::vector<ObjectID> &object_ids,
                      const std::vector<std::string> &data);
 
-  /// Returns a client to the plasma store, creating one if not already initialized.
+  /// Returns a client to the plasma store for the given thread ID,
+  /// creating one if not already initialized.
   ///
-  /// @return A client to the plasma store.
+  /// \param thread_id The thread ID.
+  /// \return A client to the plasma store.
   std::shared_ptr<PlasmaClient> Client(size_t thread_id);
 
   // Whether or not plasma is backed by external store

@@ -19,7 +19,7 @@
 #define EXTERNAL_STORE_H
 
 #include <map>
-#include "client.h"
+#include "plasma/client.h"
 
 namespace plasma {
 
@@ -78,31 +78,31 @@ class ExternalStores {
  public:
   /// Extracts the external store name from the external store endpoint
   ///
-  /// @param endpoint The endpoint for the external store
-  /// @return The external store name
+  /// \param endpoint The endpoint for the external store
+  /// \return The external store name
   static std::string ExtractStoreName(const std::string &endpoint);
 
   /// Register a new external store.
   ///
-  /// @param store_name Name of the new external store.
-  /// @param store The new external store object.
+  /// \param store_name Name of the new external store.
+  /// \param store The new external store object.
   static void RegisterStore(const std::string &store_name,
                             std::shared_ptr<ExternalStore> store);
 
   /// Register a new external store.
   ///
-  /// @param store_name Name of the new external store.
+  /// \param store_name Name of the new external store.
   static void DeregisterStore(const std::string &store_name);
 
   /// Obtain the external store given its name.
   ///
-  /// @param store_name Name of the external store.
-  /// @return The external store object.
+  /// \param store_name Name of the external store.
+  /// \return The external store object.
   static std::shared_ptr<ExternalStore> GetStore(const std::string &store_name);
 
  private:
   /// Obtain the mapping between external store names and external store instances
-  /// @return The mapping between external store names and external store instances
+  /// \return The mapping between external store names and external store instances
   static std::shared_ptr<std::map<std::string, std::shared_ptr<ExternalStore>>> Stores();
 
   /// Mapping between external store names and external store instances

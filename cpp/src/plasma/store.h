@@ -31,7 +31,7 @@
 #include "plasma/plasma.h"
 #include "plasma/protocol.h"
 #include "plasma/external_store.h"
-#include "external_store_worker.h"
+#include "plasma/external_store_worker.h"
 
 namespace plasma {
 
@@ -235,6 +235,8 @@ class PlasmaStore {
 
   std::unordered_set<ObjectID> deletion_cache_;
 
+  /// Manages worker threads for handling asynchronous/multi-threaded requests
+  /// for reading/writing data to/from external store.
   ExternalStoreWorker external_store_worker_;
 #ifdef PLASMA_CUDA
   arrow::cuda::CudaDeviceManager* manager_;

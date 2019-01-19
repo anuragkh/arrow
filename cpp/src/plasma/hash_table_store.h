@@ -23,6 +23,9 @@
 
 namespace plasma {
 
+// This is a sample implementation for an external store, for illustration
+// purposes only.
+
 typedef std::unordered_map<ObjectID, std::string> hash_table_t;
 
 class HashTableStoreHandle : public ExternalStoreHandle {

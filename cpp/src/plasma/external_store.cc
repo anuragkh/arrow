@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <iostream>
 #include <sstream>
+
 #include "external_store.h"
 
 namespace plasma {

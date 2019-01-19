@@ -1,7 +1,8 @@
 #include <utility>
 #include <arrow/util/memory.h>
 
-#include "external_store_worker.h"
+#include "plasma/external_store_worker.h"
+#include "plasma/plasma.h"
 
 namespace plasma {
 
@@ -106,7 +107,7 @@ bool ExternalStoreWorker::EnqueueUnevictRequest(const ObjectID &object_id) {
   size_t n_enqueued = 0;
   {
     std::unique_lock<std::mutex> lock(tasks_mutex_);
-    if (object_ids_.size() >= (parallelism_ * PER_THREAD_QUEUE_SIZE)) {
+    if (object_ids_.size() >= kMaxEnqueue) {
       return false;
     }
     object_ids_.push_back(object_id);
@@ -118,19 +119,11 @@ bool ExternalStoreWorker::EnqueueUnevictRequest(const ObjectID &object_id) {
 }
 
 void ExternalStoreWorker::CopyBuffer(uint8_t *dst, const uint8_t *src, size_t n) {
-  if (n > OBJECT_SIZE_THRESHOLD) {
-    arrow::internal::parallel_memcopy(dst, src, static_cast<int64_t>(n), MEMCPY_BLOCK_SIZE, MEMCPY_PARALLELISM);
+  if (n > kObjectSizeThreshold) {
+    arrow::internal::parallel_memcopy(dst, src, static_cast<int64_t>(n), kMemcpyBlockSize, kMemcpyParallelism);
   } else {
     std::memcpy(dst, src, n);
   }
-}
-
-void ExternalStoreWorker::ResetCounters() {
-  num_writes_ = 0;
-  num_bytes_written_ = 0;
-  num_reads_ = 0;
-  num_bytes_read_ = 0;
-  num_reads_not_found_ = 0;
 }
 
 void ExternalStoreWorker::PrintCounters() {
@@ -147,10 +140,8 @@ void ExternalStoreWorker::Get(std::shared_ptr<ExternalStoreHandle> handle,
                               const std::vector<ObjectID> &object_ids,
                               std::vector<std::string> &object_data) {
   object_data.resize(object_ids.size());
-  ARROW_CHECK_OK(ExternalStoreWorker::GetChunk(handle,
-                                               object_ids.size(),
-                                               &object_ids[0],
-                                               &object_data[0]));
+  ARROW_CHECK_OK(handle->Get(object_ids.size(), &object_ids[0], &object_data[0]));
+
   for (const auto &i : object_data) {
     if (i.empty()) {
       num_reads_not_found_++;
@@ -166,13 +157,6 @@ Status ExternalStoreWorker::PutChunk(std::shared_ptr<ExternalStoreHandle> handle
                                      const ObjectID *ids,
                                      const std::string *data) {
   return handle->Put(num_objects, ids, data);
-}
-
-Status ExternalStoreWorker::GetChunk(std::shared_ptr<ExternalStoreHandle> handle,
-                                     size_t num_objects,
-                                     const ObjectID *ids,
-                                     std::string *data) {
-  return handle->Get(num_objects, ids, data);
 }
 
 void ExternalStoreWorker::DoWork(size_t thread_id) {
@@ -218,7 +202,6 @@ void ExternalStoreWorker::WriteToPlasma(std::shared_ptr<PlasmaClient> client,
       ARROW_LOG(WARNING) << "Object " << object_ids.at(i).hex() << " already exists in Plasma";
       continue;
     }
-    ARROW_CHECK_OK(std::move(s));
     CopyBuffer(object_data->mutable_data(),
                reinterpret_cast<const uint8_t *>(data[i].data()),
                static_cast<size_t>(data_size));
