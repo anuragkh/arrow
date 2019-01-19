@@ -218,7 +218,7 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
   /// Common helper for Get() variants
   Status GetBuffers(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
                     const std::function<std::shared_ptr<Buffer>(
-                        const ObjectID&, const std::shared_ptr<Buffer> &)>& wrap_buffer,
+                        const ObjectID&, const std::shared_ptr<Buffer>&)>& wrap_buffer,
                     ObjectBuffer* object_buffers);
 
   uint8_t* LookupOrMmap(int fd, int store_fd_val, int64_t map_size);

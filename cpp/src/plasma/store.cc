@@ -411,8 +411,8 @@ void PlasmaStore::UpdateObjectGetRequests(const ObjectID& object_id) {
   }
 }
 
-void PlasmaStore::ProcessGetRequest(Client *client,
-                                    const std::vector<ObjectID> &object_ids,
+void PlasmaStore::ProcessGetRequest(Client* client,
+                                    const std::vector<ObjectID>& object_ids,
                                     int64_t timeout_ms) {
   // Create a get request for this object.
   auto get_req = new GetRequest(client, object_ids);
