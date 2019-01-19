@@ -82,7 +82,7 @@ enum PlasmaError:int {
   // Trying to delete an object but it's not sealed.
   ObjectNotSealed,
   // Trying to delete an object but it's in use.
-  ObjectInUse,
+  ObjectInUse
 }
 
 // Plasma store messages

@@ -181,7 +181,7 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
 
   Status Abort(const ObjectID& object_id);
 
-  Status Seal(const ObjectID &object_id, bool notify);
+  Status Seal(const ObjectID& object_id, bool notify);
 
   Status Delete(const std::vector<ObjectID>& object_ids);
 
@@ -217,12 +217,10 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
   Status MarkObjectUnused(const ObjectID& object_id);
 
   /// Common helper for Get() variants
-  Status GetBuffers(const ObjectID *object_ids,
-                    int64_t num_objects,
-                    int64_t timeout_ms,
+  Status GetBuffers(const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms,
                     const std::function<std::shared_ptr<Buffer>(
-                      const ObjectID &, const std::shared_ptr<Buffer> &)> &wrap_buffer,
-                    ObjectBuffer *object_buffers);
+                        const ObjectID &, const std::shared_ptr<Buffer> &)>& wrap_buffer,
+                    ObjectBuffer* object_buffers);
 
   uint8_t* LookupOrMmap(int fd, int store_fd_val, int64_t map_size);
 
@@ -433,12 +431,11 @@ Status PlasmaClient::Impl::CreateAndSeal(const ObjectID& object_id,
   return Status::OK();
 }
 
-Status PlasmaClient::Impl::GetBuffers(const ObjectID *object_ids,
-                                      int64_t num_objects,
-                                      int64_t timeout_ms,
-                                      const std::function<std::shared_ptr<Buffer>(
-                      const ObjectID &, const std::shared_ptr<Buffer> &)> &wrap_buffer,
-                                      ObjectBuffer *object_buffers) {
+Status PlasmaClient::Impl::GetBuffers(
+    const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
+    const std::function<std::shared_ptr<Buffer>(
+        const ObjectID&, const std::shared_ptr<Buffer> &)>& wrap_buffer,
+    ObjectBuffer* object_buffers) {
   // Fill out the info for the objects that are already in use locally.
   bool all_present = true;
   for (int64_t i = 0; i < num_objects; ++i) {
@@ -712,7 +709,7 @@ uint64_t PlasmaClient::Impl::ComputeObjectHash(const uint8_t* data, int64_t data
   return XXH64_digest(&hash_state);
 }
 
-Status PlasmaClient::Impl::Seal(const ObjectID &object_id, bool notify) {
+Status PlasmaClient::Impl::Seal(const ObjectID& object_id, bool notify) {
   // Make sure this client has a reference to the object before sending the
   // request to Plasma.
   auto object_entry = objects_in_use_.find(object_id);
@@ -938,7 +935,9 @@ Status PlasmaClient::Abort(const ObjectID& object_id) { return impl_->Abort(obje
 
 Status PlasmaClient::Seal(const ObjectID& object_id) { return impl_->Seal(object_id, true); }
 
-Status PlasmaClient::SealWithoutNotification(const ObjectID &object_id) { return impl_->Seal(object_id, false); }
+Status PlasmaClient::SealWithoutNotification(const ObjectID& object_id) {
+  return impl_->Seal(object_id, false);
+}
 
 Status PlasmaClient::Delete(const ObjectID& object_id) {
   return impl_->Delete(std::vector<ObjectID>{object_id});
