@@ -80,9 +80,11 @@ Status ReadAbortReply(uint8_t* data, size_t size, ObjectID* object_id);
 
 /* Plasma Seal message functions. */
 
-Status SendSealRequest(int sock, ObjectID object_id, unsigned char *digest, bool notify);
+Status SendSealRequest(int sock, ObjectID object_id, unsigned char* digest,
+                       bool notify);
 
-Status ReadSealRequest(uint8_t *data, size_t size, ObjectID *object_id, unsigned char *digest, bool *notify);
+Status ReadSealRequest(uint8_t* data, size_t size, ObjectID* object_id,
+                       unsigned char* digest, bool* notify);
 
 Status SendSealReply(int sock, ObjectID object_id, PlasmaError error);
 
@@ -90,9 +92,11 @@ Status ReadSealReply(uint8_t* data, size_t size, ObjectID* object_id);
 
 /* Plasma Get message functions. */
 
-Status SendGetRequest(int sock, const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms);
+Status SendGetRequest(int sock, const ObjectID* object_ids, int64_t num_objects,
+                      int64_t timeout_ms);
 
-Status ReadGetRequest(uint8_t *data, size_t size, std::vector<ObjectID> &object_ids, int64_t *timeout_ms);
+Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_ids,
+                      int64_t* timeout_ms);
 
 Status SendGetReply(int sock, ObjectID object_ids[],
                     std::unordered_map<ObjectID, PlasmaObject>& plasma_objects,

@@ -69,13 +69,13 @@ class PlasmaStore {
   using NotificationMap = std::unordered_map<int, NotificationQueue>;
 
   // TODO: PascalCase PlasmaStore methods.
-  PlasmaStore(EventLoop *loop,
+  PlasmaStore(EventLoop* loop,
               int64_t system_memory,
               std::string directory,
               bool hugepages_enabled,
-              const std::string &socket_name,
+              const std::string& socket_name,
               std::shared_ptr<ExternalStore> external_store,
-              const std::string &external_store_endpoint,
+              const std::string& external_store_endpoint,
               size_t external_store_parallelism);
 
   ~PlasmaStore();
@@ -128,7 +128,7 @@ class PlasmaStore {
 
   /// Evict objects returned by the eviction policy.
   ///
-  /// @param object_ids Object Ids of the objects to be evicted.
+  /// @param object_ids Object IDs of the objects to be evicted.
   void EvictObjects(const std::vector<ObjectID>& object_ids);
 
   /// Process a get request from a client. This method assumes that we will
@@ -142,7 +142,8 @@ class PlasmaStore {
   /// @param client The client making this request.
   /// @param object_ids Object IDs of the objects to be gotten.
   /// @param timeout_ms The timeout for the get request in milliseconds.
-  void ProcessGetRequest(Client *client, const std::vector<ObjectID> &object_ids, int64_t timeout_ms);
+  void ProcessGetRequest(Client* client, const std::vector<ObjectID>& object_ids,
+                         int64_t timeout_ms);
 
   /// Seal an object. The object is now immutable and can be accessed with get.
   ///
@@ -209,7 +210,8 @@ class PlasmaStore {
   int RemoveFromClientObjectIds(const ObjectID& object_id, ObjectTableEntry* entry,
                                 Client* client);
 
-  uint8_t* AllocateMemory(int device_num, size_t size, int *fd, int64_t *map_size, ptrdiff_t *offset);
+  uint8_t* AllocateMemory(int device_num, size_t size, int* fd, int64_t* map_size,
+                          ptrdiff_t* offset);
 
   /// Event loop of the plasma store.
   EventLoop* loop_;

@@ -90,8 +90,6 @@ Status PlasmaErrorStatus(fb::PlasmaError plasma_error) {
       return Status::PlasmaObjectNonexistent("object does not exist in the plasma store");
     case fb::PlasmaError::OutOfMemory:
       return Status::PlasmaStoreFull("object does not fit in the plasma store");
-    case fb::PlasmaError::TooManyRequests:
-      return Status::ExecutionError("too many requests, try again later");
     default:
       ARROW_LOG(FATAL) << "unknown plasma error code " << static_cast<int>(plasma_error);
   }
@@ -247,7 +245,7 @@ Status ReadAbortReply(uint8_t* data, size_t size, ObjectID* object_id) {
 
 // Seal messages.
 
-Status SendSealRequest(int sock, ObjectID object_id, unsigned char *digest, bool notify) {
+Status SendSealRequest(int sock, ObjectID object_id, unsigned char* digest, bool notify) {
   flatbuffers::FlatBufferBuilder fbb;
   auto digest_string = fbb.CreateString(reinterpret_cast<char*>(digest), kDigestSize);
   auto message = fb::CreatePlasmaSealRequest(fbb, fbb.CreateString(object_id.binary()),
@@ -255,7 +253,8 @@ Status SendSealRequest(int sock, ObjectID object_id, unsigned char *digest, bool
   return PlasmaSend(sock, MessageType::PlasmaSealRequest, &fbb, message);
 }
 
-Status ReadSealRequest(uint8_t *data, size_t size, ObjectID *object_id, unsigned char *digest, bool *notify) {
+Status ReadSealRequest(uint8_t *data, size_t size, ObjectID* object_id,
+                       unsigned char* digest, bool *notify) {
   DCHECK(data);
   auto message = flatbuffers::GetRoot<fb::PlasmaSealRequest>(data);
   DCHECK(VerifyFlatbuffer(message, data, size));
@@ -502,14 +501,16 @@ Status ReadEvictReply(uint8_t* data, size_t size, int64_t& num_bytes) {
 
 // Get messages.
 
-Status SendGetRequest(int sock, const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms) {
+Status SendGetRequest(int sock, const ObjectID* object_ids, int64_t num_objects,
+                      int64_t timeout_ms) {
   flatbuffers::FlatBufferBuilder fbb;
   auto message = fb::CreatePlasmaGetRequest(
       fbb, ToFlatbuffer(&fbb, object_ids, num_objects), timeout_ms);
   return PlasmaSend(sock, MessageType::PlasmaGetRequest, &fbb, message);
 }
 
-Status ReadGetRequest(uint8_t *data, size_t size, std::vector<ObjectID> &object_ids, int64_t *timeout_ms) {
+Status ReadGetRequest(uint8_t* data, size_t size, std::vector<ObjectID>& object_ids,
+                      int64_t* timeout_ms) {
   DCHECK(data);
   auto message = flatbuffers::GetRoot<fb::PlasmaGetRequest>(data);
   DCHECK(VerifyFlatbuffer(message, data, size));

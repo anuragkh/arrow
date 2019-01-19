@@ -113,13 +113,13 @@ GetRequest::GetRequest(Client* client, const std::vector<ObjectID>& object_ids)
 
 Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 
-PlasmaStore::PlasmaStore(EventLoop *loop,
+PlasmaStore::PlasmaStore(EventLoop* loop,
                          int64_t system_memory,
                          std::string directory,
                          bool hugepages_enabled,
-                         const std::string &socket_name,
+                         const std::string& socket_name,
                          std::shared_ptr<ExternalStore> external_store,
-                         const std::string &external_store_endpoint,
+                         const std::string& external_store_endpoint,
                          size_t external_store_parallelism)
     : loop_(loop), eviction_policy_(&store_info_),
       external_store_worker_(std::move(external_store),
@@ -415,7 +415,7 @@ void PlasmaStore::UpdateObjectGetRequests(const ObjectID& object_id) {
   }
 }
 
-void PlasmaStore::ProcessGetRequest(Client *client, const std::vector<ObjectID> &object_ids, int64_t timeout_ms) {
+void PlasmaStore::ProcessGetRequest(Client* client, const std::vector<ObjectID>& object_ids, int64_t timeout_ms) {
   // Create a get request for this object.
   auto get_req = new GetRequest(client, object_ids);
   std::vector<ObjectID> evicted_ids;

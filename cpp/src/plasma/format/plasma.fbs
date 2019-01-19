@@ -83,8 +83,6 @@ enum PlasmaError:int {
   ObjectNotSealed,
   // Trying to delete an object but it's in use.
   ObjectInUse,
-  // Too many requests
-  TooManyRequests
 }
 
 // Plasma store messages
