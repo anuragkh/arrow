@@ -253,7 +253,7 @@ Status SendSealRequest(int sock, ObjectID object_id, unsigned char* digest, bool
   return PlasmaSend(sock, MessageType::PlasmaSealRequest, &fbb, message);
 }
 
-Status ReadSealRequest(uint8_t *data, size_t size, ObjectID* object_id,
+Status ReadSealRequest(uint8_t* data, size_t size, ObjectID* object_id,
                        unsigned char* digest, bool *notify) {
   DCHECK(data);
   auto message = flatbuffers::GetRoot<fb::PlasmaSealRequest>(data);

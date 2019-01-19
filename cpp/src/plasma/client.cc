@@ -216,9 +216,9 @@ class PlasmaClient::Impl : public std::enable_shared_from_this<PlasmaClient::Imp
   Status MarkObjectUnused(const ObjectID& object_id);
 
   /// Common helper for Get() variants
-  Status GetBuffers(const ObjectID *object_ids, int64_t num_objects, int64_t timeout_ms,
+  Status GetBuffers(const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
                     const std::function<std::shared_ptr<Buffer>(
-                        const ObjectID &, const std::shared_ptr<Buffer> &)>& wrap_buffer,
+                        const ObjectID&, const std::shared_ptr<Buffer> &)>& wrap_buffer,
                     ObjectBuffer* object_buffers);
 
   uint8_t* LookupOrMmap(int fd, int store_fd_val, int64_t map_size);
@@ -433,7 +433,7 @@ Status PlasmaClient::Impl::CreateAndSeal(const ObjectID& object_id,
 Status PlasmaClient::Impl::GetBuffers(
     const ObjectID* object_ids, int64_t num_objects, int64_t timeout_ms,
     const std::function<std::shared_ptr<Buffer>(
-        const ObjectID&, const std::shared_ptr<Buffer> &)>& wrap_buffer,
+        const ObjectID&, const std::shared_ptr<Buffer>&)>& wrap_buffer,
     ObjectBuffer* object_buffers) {
   // Fill out the info for the objects that are already in use locally.
   bool all_present = true;

@@ -111,11 +111,8 @@ GetRequest::GetRequest(Client* client, const std::vector<ObjectID>& object_ids)
 
 Client::Client(int fd) : fd(fd), notification_fd(-1) {}
 
-PlasmaStore::PlasmaStore(EventLoop* loop,
-                         int64_t system_memory,
-                         std::string directory,
-                         bool hugepages_enabled,
-                         const std::string& socket_name,
+PlasmaStore::PlasmaStore(EventLoop* loop, int64_t system_memory, std::string directory,
+                         bool hugepages_enabled, const std::string& socket_name,
                          std::shared_ptr<ExternalStore> external_store,
                          const std::string& external_store_endpoint,
                          size_t external_store_parallelism)

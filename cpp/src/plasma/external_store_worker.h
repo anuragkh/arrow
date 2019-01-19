@@ -63,9 +63,9 @@ class ExternalStoreWorker {
 
   /// Copy memory buffer in parallel if data size is large enough
   ///
-  /// @param dst Destination memory buffer
-  /// @param src Source memory buffer
-  /// @param n Number of bytes to copy
+  /// \param dst Destination memory buffer
+  /// \param src Source memory buffer
+  /// \param n Number of bytes to copy
   void CopyBuffer(uint8_t *dst, const uint8_t *src, size_t n);
 
   /// Enqueue an un-evict request; if the request is successfully enqueued, the
@@ -104,7 +104,7 @@ class ExternalStoreWorker {
 
   /// Contains the logic for a worker thread.
   ///
-  /// @param thread_id The thread ID.
+  /// \param thread_id The thread ID.
   void DoWork(size_t thread_id);
 
   /// Get objects from external store and writes it back to plasma store.
