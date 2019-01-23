@@ -86,6 +86,9 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
 };
 
 TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
+  sleep(10);
+  system("cat /tmp/log.stderr");
+  system("cat /tmp/log.stdout");
   std::vector<ObjectID> object_ids;
   std::string data(10 * 1024 * 1024, 'x');
   std::string metadata;
