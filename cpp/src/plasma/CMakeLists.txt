@@ -126,7 +126,14 @@ if ("${COMPILER_FAMILY}" STREQUAL "gcc")
     " -Wno-conversion")
 endif()
 
-list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store_worker.cc" "external_store.cc" "hash_table_store.cc")
+find_package(AWSSDK REQUIRED COMPONENTS "s3")
+list(APPEND PLASMA_EXTERNAL_STORE_SOURCES
+        "external_store_worker.cc"
+        "external_store.cc"
+        "hash_table_store.cc"
+        "s3_store.cc")
+list(APPEND PLASMA_EXTERNAL_STORE_LIBS
+        ${AWSSDK_LINK_LIBRARIES})
 
 if (PLASMA_EXTRA_EXTERNAL_STORE_SOURCES)
   list(APPEND PLASMA_EXTERNAL_STORE_SOURCES ${PLASMA_EXTRA_EXTERNAL_STORE_SOURCES})
