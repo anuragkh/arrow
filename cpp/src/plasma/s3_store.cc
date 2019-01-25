@@ -45,6 +45,12 @@ static Aws::String GetRegion() {
   return Aws::String(region);
 }
 
+uint64_t NowMs() {
+  using namespace ::std::chrono;
+  time_point<system_clock> now = system_clock::now();
+  return static_cast<uint64_t>(duration_cast<milliseconds>(now.time_since_epoch()).count());
+}
+
 S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
                              const Aws::String &key_prefix,
                              const ClientConfiguration &config)
@@ -53,11 +59,14 @@ S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
 
 Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
                           const std::vector<std::shared_ptr<Buffer>> &data) {
+  ARROW_LOG(INFO) << "Writing " << ids.size() << " objects to s3";
+  auto t0 = NowMs();
   std::vector<Model::PutObjectOutcomeCallable> put_callables;
   for (size_t i = 0; i < ids.size(); ++i) {
     Aws::S3::Model::PutObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].hex().data());
     auto objectStream = Aws::MakeShared<Aws::StringStream>("DataStream");
+    objectStream->write(reinterpret_cast<const char *>(data[i]->data()), data[i]->size());
     *objectStream << data[i]->ToString();
     objectStream->flush();
     request.SetBody(objectStream);
@@ -66,18 +75,19 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
 
   std::string err_msg;
   for (size_t i = 0; i < ids.size(); ++i) {
-    auto status = put_callables[i].wait_for(std::chrono::seconds(10));
-    if (status != std::future_status::ready) {
-      err_msg += "Could not write object with id " + ids[i].hex() + " to S3 in 10s\n";
-    }
     auto outcome = put_callables.at(i).get();
     if (!outcome.IsSuccess())
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
   }
+  auto t1 = NowMs();
+  ARROW_LOG(INFO) << "Wrote " << ids.size() << " objects in " << (t1 - t0) << "ms";
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
 
 Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::string> &data) {
+  ARROW_LOG(INFO) << "Fetching " << ids.size() << " objects from s3";
+
+  auto t0 = NowMs();
   data.resize(ids.size());
   std::vector<Model::GetObjectOutcomeCallable> get_callables;
   for (const auto& id: ids) {
@@ -98,6 +108,8 @@ Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::str
     auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
     data[i].assign(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
   }
+  auto t1 = NowMs();
+  ARROW_LOG(INFO) << "Wrote " << ids.size() << " objects in " << (t1 - t0) << "ms";
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
 
