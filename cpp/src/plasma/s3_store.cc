@@ -74,8 +74,8 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
   }
 
   std::string err_msg;
-  for (size_t i = 0; i < ids.size(); ++i) {
-    auto outcome = put_callables.at(i).get();
+  for (auto &put_callable : put_callables) {
+    auto outcome = put_callable.get();
     if (!outcome.IsSuccess())
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
   }
@@ -85,19 +85,18 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
 }
 
 Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::string> &data) {
-  ARROW_LOG(INFO) << "Fetching " << ids.size() << " objects from s3";
-
   auto t0 = NowMs();
   data.resize(ids.size());
   std::vector<Model::GetObjectOutcomeCallable> get_callables;
   for (const auto& id: ids) {
+    ARROW_LOG(INFO) << "Fetching " << id.hex() << " from s3";
     Aws::S3::Model::GetObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + id.hex().data());
     get_callables.push_back(client_.GetObjectCallable(request));
   }
 
   std::string err_msg;
-  for (size_t i = 0; i < ids.size(); ++i) {
+  for (size_t i = 0; i < get_callables.size(); ++i) {
     auto status = get_callables[i].wait_for(std::chrono::seconds(10));
     if (status != std::future_status::ready) {
       err_msg += "Could not fetch object with id " + ids[i].hex() + " from S3 in 10s\n";
@@ -109,7 +108,7 @@ Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::str
     data[i].assign(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
   }
   auto t1 = NowMs();
-  ARROW_LOG(INFO) << "Wrote " << ids.size() << " objects in " << (t1 - t0) << "ms";
+  ARROW_LOG(INFO) << "Read " << ids.size() << " objects in " << (t1 - t0) << "ms";
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
 
