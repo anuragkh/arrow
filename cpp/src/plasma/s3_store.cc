@@ -54,6 +54,7 @@ S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
 Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
                           const std::vector<std::shared_ptr<Buffer>> &data) {
   std::string err_msg;
+  std::vector<Model::PutObjectOutcomeCallable> put_callables;
   for (size_t i = 0; i < ids.size(); ++i) {
     Aws::S3::Model::PutObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].hex().data());
@@ -61,8 +62,11 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
     *objectStream << data[i]->ToString();
     objectStream->flush();
     request.SetBody(objectStream);
+    put_callables.push_back(client_.PutObjectCallable(request));
+  }
 
-    auto outcome = client_.PutObject(request);
+  for (size_t i = 0; i < ids.size(); ++i) {
+    auto outcome = put_callables.at(i).get();
     if (!outcome.IsSuccess())
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
   }
@@ -71,10 +75,15 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
 
 Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::string> &data) {
   data.resize(ids.size());
+  std::vector<Model::GetObjectOutcomeCallable> get_callables;
   for (size_t i = 0; i < ids.size(); ++i) {
     Aws::S3::Model::GetObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].hex().data());
-    auto outcome = client_.GetObject(request);
+    get_callables.push_back(client_.GetObjectCallable(request));
+  }
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    auto outcome = get_callables[i].get();
     if (!outcome.IsSuccess())
       throw std::runtime_error(outcome.GetError().GetMessage().c_str());
     auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
