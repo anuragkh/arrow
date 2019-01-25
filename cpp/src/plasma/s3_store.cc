@@ -53,7 +53,6 @@ S3StoreHandle::S3StoreHandle(const Aws::String &bucket,
 
 Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
                           const std::vector<std::shared_ptr<Buffer>> &data) {
-  std::string err_msg;
   std::vector<Model::PutObjectOutcomeCallable> put_callables;
   for (size_t i = 0; i < ids.size(); ++i) {
     Aws::S3::Model::PutObjectRequest request;
@@ -65,7 +64,12 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
     put_callables.push_back(client_.PutObjectCallable(request));
   }
 
+  std::string err_msg;
   for (size_t i = 0; i < ids.size(); ++i) {
+    auto status = put_callables[i].wait_for(std::chrono::seconds(10));
+    if (status != std::future_status::ready) {
+      err_msg += "Could not write object with id " + ids[i].hex() + " to S3 in 10s\n";
+    }
     auto outcome = put_callables.at(i).get();
     if (!outcome.IsSuccess())
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
@@ -76,20 +80,25 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
 Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::string> &data) {
   data.resize(ids.size());
   std::vector<Model::GetObjectOutcomeCallable> get_callables;
-  for (size_t i = 0; i < ids.size(); ++i) {
+  for (const auto& id: ids) {
     Aws::S3::Model::GetObjectRequest request;
-    request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].hex().data());
+    request.WithBucket(bucket_name_).WithKey(key_prefix_ + id.hex().data());
     get_callables.push_back(client_.GetObjectCallable(request));
   }
 
+  std::string err_msg;
   for (size_t i = 0; i < ids.size(); ++i) {
+    auto status = get_callables[i].wait_for(std::chrono::seconds(10));
+    if (status != std::future_status::ready) {
+      err_msg += "Could not fetch object with id " + ids[i].hex() + " from S3 in 10s\n";
+    }
     auto outcome = get_callables[i].get();
     if (!outcome.IsSuccess())
-      throw std::runtime_error(outcome.GetError().GetMessage().c_str());
+      err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
     auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
     data[i].assign(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
   }
-  return Status::OK();
+  return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
 
 std::pair<Aws::String, Aws::String> S3Store::ExtractEndpointElements(const std::string &s3_endpoint) {
