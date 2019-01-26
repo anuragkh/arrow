@@ -57,6 +57,7 @@
 #include "plasma/fling.h"
 #include "plasma/io.h"
 #include "plasma/malloc.h"
+#include "plasma/plasma_allocator.h"
 
 #ifdef PLASMA_CUDA
 #include "arrow/gpu/cuda_api.h"
@@ -72,13 +73,6 @@ using arrow::util::ArrowLogLevel;
 namespace fb = plasma::flatbuf;
 
 namespace plasma {
-
-extern "C" {
-void* dlmalloc(size_t bytes);
-void* dlmemalign(size_t alignment, size_t bytes);
-void dlfree(void* mem);
-size_t dlmalloc_set_footprint_limit(size_t bytes);
-}
 
 struct GetRequest {
   GetRequest(Client* client, const std::vector<ObjectID>& object_ids);
@@ -169,7 +163,7 @@ uint8_t* PlasmaStore::AllocateMemory(int device_num, size_t size, int* fd,
   }
 #endif
   while (true) {
-    // Allocate space for the new object. We use dlmemalign instead of dlmalloc
+    // Allocate space for the new object. We use memalign instead of malloc
     // in order to align the allocated region to a 64-byte boundary. This is not
     // strictly necessary, but it is an optimization that could speed up the
     // computation of a hash of the data (see compute_object_hash_parallel in
@@ -177,7 +171,7 @@ uint8_t* PlasmaStore::AllocateMemory(int device_num, size_t size, int* fd,
     // it is not guaranteed that the corresponding pointer in the client will be
     // 64-byte aligned, but in practice it often will be.
     if (device_num == 0) {
-      pointer = reinterpret_cast<uint8_t*>(dlmemalign(kBlockSize, size));
+      pointer = reinterpret_cast<uint8_t*>(PlasmaAllocator::Memalign(kBlockSize, size));
       if (pointer == nullptr) {
         // Tell the eviction policy how much space we need to create this object.
         std::vector<ObjectID> objects_to_evict;
@@ -675,7 +669,7 @@ void PlasmaStore::EvictObjects(const std::vector<ObjectID>& object_ids) {
   if (external_store_worker_.IsValid() && !object_ids.empty()) {
     external_store_worker_.Put(object_ids, evicted_object_data);
     for (auto entry : evicted_entries) {
-      dlfree(entry->pointer);
+      PlasmaAllocator::Free(entry->pointer, entry->data_size + entry->metadata_size);
       entry->pointer = nullptr;
       entry->state = ObjectState::PLASMA_EVICTED;
     }
@@ -1028,9 +1022,9 @@ class PlasmaStoreRunner {
     // achieve that by mallocing and freeing a single large amount of space.
     // that maximum allowed size up front.
     if (use_one_memory_mapped_file) {
-      void* pointer = plasma::dlmemalign(kBlockSize, system_memory - 8192);
+      void* pointer = plasma::PlasmaAllocator::Memalign(kBlockSize, system_memory - 8192);
       ARROW_CHECK(pointer != nullptr);
-      plasma::dlfree(pointer);
+      plasma::PlasmaAllocator::Free(pointer, system_memory - 8192);
     }
 
     int socket = BindIpcSock(socket_name, true);
@@ -1198,7 +1192,7 @@ int main(int argc, char* argv[]) {
 
   // Make it so dlmalloc fails if we try to request more memory than is
   // available.
-  plasma::dlmalloc_set_footprint_limit((size_t)system_memory);
+  plasma::PlasmaAllocator::SetFootprintLimit((size_t)system_memory);
   ARROW_LOG(DEBUG) << "starting server listening on " << socket_name;
   plasma::StartServer(socket_name, system_memory, plasma_directory, hugepages_enabled,
                       use_one_memory_mapped_file, external_store, external_store_endpoint,

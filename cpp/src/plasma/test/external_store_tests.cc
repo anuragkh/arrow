@@ -89,7 +89,7 @@ class TestPlasmaStoreWithExternal : public ::testing::Test {
 
 TEST_F(TestPlasmaStoreWithExternal, EvictionTest) {
   std::vector<ObjectID> object_ids;
-  std::string data(10 * 1024, 'x');
+  std::string data(100 * 1024, 'x');
   std::string metadata;
   for (int i = 0; i < 11; i++) {
     ObjectID object_id = random_object_id();
