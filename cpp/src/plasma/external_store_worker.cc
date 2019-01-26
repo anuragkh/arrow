@@ -176,6 +176,7 @@ void ExternalStoreWorker::WriteToPlasma(std::shared_ptr<PlasmaClient> client,
     }
     std::shared_ptr<Buffer> object_data;
     auto data_size = static_cast<int64_t>(data.at(i).size());
+    ARROW_LOG(INFO) << "Writing object with size " << data_size << " to plasma";
     auto s = client->Create(object_ids.at(i), data_size, nullptr, 0, &object_data);
     if (s.IsPlasmaObjectExists()) {
       ARROW_LOG(WARNING) << "ObjectID " << object_ids.at(i).hex()
