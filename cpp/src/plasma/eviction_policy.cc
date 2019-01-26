@@ -76,14 +76,13 @@ void EvictionPolicy::ObjectCreated(const ObjectID& object_id) {
 bool EvictionPolicy::RequireSpace(int64_t size, std::vector<ObjectID>* objects_to_evict) {
   // Check if there is enough space to create the object.
   int64_t required_space = memory_used_ + size - store_info_->memory_capacity;
-  // Try to free up at least as much space as we need right now but ideally
-  // up to 2% of the total capacity.
+  // Try to free up as much space as we need
   int64_t space_to_free = std::max(required_space, size);
-  ARROW_LOG(DEBUG) << "not enough space to create this object, so evicting objects";
+  ARROW_LOG(INFO) << "There is not enough space to create this object, so attempting"
+                  << "to evict at least " << space_to_free << " bytes.";
   // Choose some objects to evict, and update the return pointers.
   int64_t num_bytes_evicted = ChooseObjectsToEvict(space_to_free, objects_to_evict);
-  ARROW_LOG(INFO) << "There is not enough space to create this object, so evicting "
-                  << objects_to_evict->size() << " objects to free up "
+  ARROW_LOG(INFO) << "Evicting " << objects_to_evict->size() << " objects to free up "
                   << num_bytes_evicted << " bytes. The number of bytes in use (before "
                   << "this eviction) is " << (memory_used_ + num_bytes_evicted) << ".";
   return num_bytes_evicted >= required_space && num_bytes_evicted > 0;
