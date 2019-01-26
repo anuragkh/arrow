@@ -214,7 +214,6 @@ PlasmaError PlasmaStore::CreateObject(const ObjectID& object_id, int64_t data_si
   int fd = -1;
   int64_t map_size = 0;
   ptrdiff_t offset = 0;
-  ARROW_LOG(INFO) << "Requesting data_size = " << data_size << " metadata size = " << metadata_size;
   uint8_t* pointer =
       AllocateMemory(device_num, data_size + metadata_size, &fd, &map_size, &offset);
   if (pointer == nullptr) {
