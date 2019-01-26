@@ -64,6 +64,7 @@ Status S3StoreHandle::Put(const std::vector<ObjectID> &ids,
     Aws::S3::Model::PutObjectRequest request;
     request.WithBucket(bucket_name_).WithKey(key_prefix_ + ids[i].hex().data());
     auto objectStream = Aws::MakeShared<Aws::StringStream>("DataStream");
+    ARROW_LOG(INFO) << "Writing object with size " << data[i]->size();
     objectStream->write(reinterpret_cast<const char *>(data[i]->data()), data[i]->size());
     *objectStream << data[i]->ToString();
     objectStream->flush();
@@ -100,6 +101,7 @@ Status S3StoreHandle::Get(const std::vector<ObjectID> &ids, std::vector<std::str
       err_msg += std::string(outcome.GetError().GetMessage().data()) + "\n";
     auto in = std::make_shared<Aws::IOStream>(outcome.GetResult().GetBody().rdbuf());
     data[i].assign(std::istreambuf_iterator<char>(*in), std::istreambuf_iterator<char>());
+    ARROW_LOG(INFO) << "Read object with size " << data[i].size();
   }
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
 }
