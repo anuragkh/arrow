@@ -125,12 +125,15 @@ if ("${COMPILER_FAMILY}" STREQUAL "gcc")
     " -Wno-conversion")
 endif()
 
-list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store.cc" "hash_table_store.cc")
+list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store.cc" "hash_table_store.cc" "jiffy_store.cc")
+
+add_subdirectory(thirdparty/libjiffy)
+include_directories(thirdparty/libjiffy/src)
 
 # We use static libraries for the plasma_store_server executable so that it can
 # be copied around and used in different locations.
 add_executable(plasma_store_server ${PLASMA_EXTERNAL_STORE_SOURCES} store.cc)
-target_link_libraries(plasma_store_server plasma_static ${PLASMA_STATIC_LINK_LIBS})
+target_link_libraries(plasma_store_server plasma_static jiffy_client ${PLASMA_STATIC_LINK_LIBS})
 add_dependencies(plasma plasma_store_server)
 
 if (ARROW_RPATH_ORIGIN)
@@ -187,7 +190,7 @@ if(ARROW_PLASMA_JAVA_CLIENT)
   file(GLOB PLASMA_LIBRARY_EXT_java_SRC
     lib/java/*.cc lib/*.cc)
   add_library(plasma_java SHARED
-    ${PLASMA_LIBRARY_EXT_java_SRC})
+    ${PLASMA_LIBRARY_EXT_java_SRC} jiffy_store.cc)
 
   if(APPLE)
     target_link_libraries(plasma_java plasma_shared ${PLASMA_LINK_LIBS} "-undefined dynamic_lookup" -Wl,-force_load,${FLATBUFFERS_STATIC_LIB} ${FLATBUFFERS_STATIC_LIB} ${PTHREAD_LIBRARY})

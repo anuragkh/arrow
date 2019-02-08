@@ -158,7 +158,7 @@ if (ARROW_THRIFT OR ARROW_WITH_ZLIB)
   set(ARROW_WITH_ZLIB ON)
 endif()
 
-if (ARROW_HIVESERVER2 OR ARROW_PARQUET)
+if (ARROW_HIVESERVER2 OR ARROW_PARQUET OR ARROW_PLASMA)
   set(ARROW_WITH_THRIFT ON)
 else()
   set(ARROW_WITH_THRIFT OFF)
@@ -1738,3 +1738,49 @@ if (ARROW_USE_GLOG)
       DEPS gflags_static)
   endif()
 endif()
+
+## ----------------------------------------------------------------------
+## Jiffy
+#
+#if (ARROW_USE_JIFFY)
+#    set(JIFFY_HOME "${CMAKE_CURRENT_BINARY_DIR}/glog_ep-prefix/src/glog_ep")
+#    set(JIFFY_INCLUDE_DIR "${JIFFY_HOME}/include")
+#    set(JIFFY_STATIC_LIB "${JIFFY_HOME}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}jiffy_client${CMAKE_STATIC_LIBRARY_SUFFIX}")
+#
+#    set(JIFFY_CMAKE_ARGS ${EP_COMMON_CMAKE_ARGS}
+#            "-DCMAKE_INSTALL_PREFIX=${JIFFY_HOME}"
+#            "-DBUILD_SHARED_LIBS=OFF"
+#            "-DBUILD_STORAGE=OFF"
+#            "-DBUILD_DIRECTORY=OFF"
+#            "-DBUILD_CPP_CLIENT=ON"
+#            "-DBUILD_PYTHON_CLIENT=OFF"
+#            "-DBUILD_JAVA_CLIENT=OFF"
+#            "-DBUILD_TESTS=OFF"
+#            "-DBUILD_DOC=OFF"
+#            "-DBUILD_BENCHMARKS=OFF"
+#            "-DGENERATE_THRIFT=OFF")
+#    ExternalProject_Add(jiffy_ep
+#            GIT_REPOSITORY https://github.com/ucbrise/jiffy.git
+#            GIT_TAG new_arch
+#            INSTALL_DIR ${JIFFY_HOME}
+#            BUILD_BYPRODUCTS "${GLOG_STATIC_LIB}"
+#            CMAKE_ARGS ${GLOG_CMAKE_ARGS}
+#            ${EP_LOG_OPTIONS})
+#
+#    set(GLOG_VENDORED 1)
+#
+#  message(STATUS "Glog include dir: ${GLOG_INCLUDE_DIR}")
+#  message(STATUS "Glog static library: ${GLOG_STATIC_LIB}")
+#
+#  include_directories(SYSTEM ${GLOG_INCLUDE_DIR})
+#
+#  if (GLOG_VENDORED)
+#    ADD_THIRDPARTY_LIB(glog
+#            STATIC_LIB ${GLOG_STATIC_LIB})
+#    add_dependencies(glog_static glog_ep)
+#  else()
+#    ADD_THIRDPARTY_LIB(glog
+#            STATIC_LIB ${GLOG_STATIC_LIB}
+#            DEPS gflags_static)
+#  endif()
+#endif()
