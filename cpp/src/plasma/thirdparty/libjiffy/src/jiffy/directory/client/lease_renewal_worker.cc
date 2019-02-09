@@ -6,6 +6,17 @@ namespace directory {
 
 using namespace jiffy::utils;
 
+std::vector<std::string>::const_iterator find(const std::vector<std::string>& entries,
+                                              const std::string& entry_to_find) {
+  std::vector<std::string>::const_iterator it;
+  for (it = entries.begin(); it != entries.end(); ++it) {
+    if (*it == entry_to_find) {
+      return it;
+    }
+  }
+  return it;
+}
+
 lease_renewal_worker::lease_renewal_worker(const std::string &host, int port)
     : stop_(false), ls_(host, port) {
 }
@@ -47,22 +58,22 @@ void lease_renewal_worker::start() {
 
 void lease_renewal_worker::add_path(const std::string &path) {
   std::lock_guard<std::mutex> lock(metadata_mtx_);
-  if (std::find(to_renew_.begin(), to_renew_.end(), path) == to_renew_.end()) {
+  if (find(to_renew_, path) == to_renew_.end()) {
     to_renew_.push_back(path);
   }
 }
 
 void lease_renewal_worker::remove_path(const std::string &path) {
   std::lock_guard<std::mutex> lock(metadata_mtx_);
-  std::vector<std::string>::iterator it;
-  if ((it = std::find(to_renew_.begin(), to_renew_.end(), path)) != to_renew_.end()) {
+  std::vector<std::string>::const_iterator it;
+  if ((it = find(to_renew_, path)) != to_renew_.end()) {
     to_renew_.erase(it);
   }
 }
 
 bool lease_renewal_worker::has_path(const std::string &path) {
   std::lock_guard<std::mutex> lock(metadata_mtx_);
-  return std::find(to_renew_.begin(), to_renew_.end(), path) != to_renew_.end();
+  return find(to_renew_, path) != to_renew_.end();
 }
 
 }

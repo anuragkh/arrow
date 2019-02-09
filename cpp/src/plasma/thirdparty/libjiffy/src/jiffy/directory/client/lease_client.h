@@ -1,6 +1,7 @@
 #ifndef JIFFY_DIRECTORY_LEASE_CLIENT_H
 #define JIFFY_DIRECTORY_LEASE_CLIENT_H
 
+#include <atomic>
 #include <thrift/transport/TSocket.h>
 #include "../lease/lease_service.h"
 
