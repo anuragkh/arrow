@@ -125,15 +125,17 @@ if ("${COMPILER_FAMILY}" STREQUAL "gcc")
     " -Wno-conversion")
 endif()
 
-list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store.cc" "hash_table_store.cc" "jiffy_store.cc")
+list(APPEND PLASMA_EXTERNAL_STORE_SOURCES "external_store.cc" "hash_table_store.cc" "jiffy_store.cc" "s3_store.cc")
 
 add_subdirectory(thirdparty/libjiffy)
 include_directories(thirdparty/libjiffy/src)
 
+find_package(AWSSDK REQUIRED COMPONENTS s3)
+
 # We use static libraries for the plasma_store_server executable so that it can
 # be copied around and used in different locations.
 add_executable(plasma_store_server ${PLASMA_EXTERNAL_STORE_SOURCES} store.cc)
-target_link_libraries(plasma_store_server plasma_static jiffy_client ${PLASMA_STATIC_LINK_LIBS})
+target_link_libraries(plasma_store_server plasma_static jiffy_client ${PLASMA_STATIC_LINK_LIBS} ${AWSSDK_LINK_LIBRARIES})
 add_dependencies(plasma plasma_store_server)
 
 if (ARROW_RPATH_ORIGIN)
