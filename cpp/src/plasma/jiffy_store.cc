@@ -43,8 +43,8 @@ Status plasma::JiffyStore::Put(const std::vector<plasma::ObjectID> &ids,
   // Convert ObjectIds, buffers to strings
   std::vector<std::string> kvs(ids.size() * 2);
   for (size_t i = 0; i < ids.size(); ++i) {
-    kvs[i] = ids[i].binary();
-    kvs[i + 1] = data[i]->ToString();
+    kvs[2 * i] = ids[i].binary();
+    kvs[2 * i + 1] = data[i]->ToString();
   }
 
   try {
