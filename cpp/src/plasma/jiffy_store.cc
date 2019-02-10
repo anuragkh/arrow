@@ -7,6 +7,7 @@ namespace plasma {
 
 JiffyStore::~JiffyStore() {
   if (client_) {
+    ARROW_LOG(INFO) << "Removing /tmp from Jiffy";
     client_->remove("/tmp");
   }
 }
