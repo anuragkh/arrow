@@ -32,6 +32,8 @@ class JiffyStore : public ExternalStore {
  public:
   JiffyStore() = default;
 
+  ~JiffyStore() override;
+
   Status Connect(const std::string& endpoint) override;
 
   Status Get(const std::vector<ObjectID>& ids,
@@ -43,8 +45,8 @@ class JiffyStore : public ExternalStore {
  private:
   std::tuple<std::string, int, int> ExtractEndpointElements(const std::string &endpoint);
 
-  std::shared_ptr<jiffy::client::jiffy_client> client_;
-  std::shared_ptr<jiffy::storage::hash_table_client> hash_table_client_;
+  std::shared_ptr<jiffy::client::jiffy_client> client_{};
+  std::shared_ptr<jiffy::storage::hash_table_client> hash_table_client_{};
 };
 
 }  // namespace plasma

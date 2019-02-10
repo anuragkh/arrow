@@ -1,8 +1,15 @@
 #include <plasma/thirdparty/libjiffy/src/jiffy/utils/string_utils.h>
 #include "plasma/jiffy_store.h"
 #include "arrow/util/logging.h"
+#include "jiffy_store.h"
 
 namespace plasma {
+
+JiffyStore::~JiffyStore() {
+  if (client_) {
+    client_->remove("/tmp");
+  }
+}
 
 Status plasma::JiffyStore::Connect(const std::string &endpoint) {
   try {
