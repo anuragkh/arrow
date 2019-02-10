@@ -73,12 +73,11 @@ bool EvictionPolicy::RequireSpace(int64_t size, std::vector<ObjectID>* objects_t
       PlasmaAllocator::Allocated() + size - PlasmaAllocator::GetFootprintLimit();
   // Try to free up at least as much space as we need right now but ideally
   // up to 20% of the total capacity.
-  int64_t space_to_free =
-      std::max(required_space, PlasmaAllocator::GetFootprintLimit() / 5);
+  int64_t space_to_free = std::max(required_space, size);
   ARROW_LOG(DEBUG) << "not enough space to create this object, so evicting objects";
   // Choose some objects to evict, and update the return pointers.
   int64_t num_bytes_evicted = ChooseObjectsToEvict(space_to_free, objects_to_evict);
-  ARROW_LOG(INFO) << "There is not enough space to create this object, so evicting "
+  ARROW_LOG(DEBUG) << "There is not enough space to create this object, so evicting "
                   << objects_to_evict->size() << " objects to free up "
                   << num_bytes_evicted << " bytes. The number of bytes in use (before "
                   << "this eviction) is " << PlasmaAllocator::Allocated() << ".";
