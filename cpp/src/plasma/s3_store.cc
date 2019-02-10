@@ -53,11 +53,12 @@ Status S3Store::ExtractBucketAndKeyPrefix(const std::string& endpoint) {
   return Status::OK();
 }
 
-S3Store::S3Store() { Aws::InitAPI(options_); }
+S3Store::S3Store() { }
 
 S3Store::~S3Store() { Aws::ShutdownAPI(options_); }
 
 Status S3Store::Connect(const std::string& endpoint) {
+  Aws::InitAPI(options_);
   RETURN_NOT_OK(ExtractBucketAndKeyPrefix(endpoint));
   ARROW_LOG(INFO) << "Connecting to s3 bucket \"" << bucket_name_
                   << "\" with key-prefix \"" << key_prefix_ << "\"";
