@@ -32,8 +32,6 @@ namespace plasma {
 
 class HashTableStore : public ExternalStore {
  public:
-  HashTableStore() = default;
-
   Status Connect(const std::string& endpoint) override;
 
   Status Get(const std::vector<ObjectID>& ids,
@@ -41,6 +39,7 @@ class HashTableStore : public ExternalStore {
 
   Status Put(const std::vector<ObjectID>& ids,
              const std::vector<std::shared_ptr<Buffer>>& data) override;
+  Status Disconnect() override;
 
  private:
   typedef std::unordered_map<ObjectID, std::string> HashTable;

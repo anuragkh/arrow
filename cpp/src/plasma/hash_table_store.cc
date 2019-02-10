@@ -53,6 +53,10 @@ Status HashTableStore::Get(const std::vector<ObjectID>& ids,
   return Status::OK();
 }
 
+Status HashTableStore::Disconnect() {
+  return Status::OK();
+}
+
 REGISTER_EXTERNAL_STORE("hashtable", HashTableStore);
 
 }  // namespace plasma

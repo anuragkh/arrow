@@ -30,10 +30,6 @@ namespace plasma {
 
 class JiffyStore : public ExternalStore {
  public:
-  JiffyStore() = default;
-
-  ~JiffyStore() override;
-
   Status Connect(const std::string& endpoint) override;
 
   Status Get(const std::vector<ObjectID>& ids,
@@ -41,6 +37,7 @@ class JiffyStore : public ExternalStore {
 
   Status Put(const std::vector<ObjectID>& ids,
              const std::vector<std::shared_ptr<Buffer>>& data) override;
+  Status Disconnect() override;
 
  private:
   std::tuple<std::string, int, int> ExtractEndpointElements(const std::string &endpoint);

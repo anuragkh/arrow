@@ -53,10 +53,6 @@ Status S3Store::ExtractBucketAndKeyPrefix(const std::string& endpoint) {
   return Status::OK();
 }
 
-S3Store::S3Store() { }
-
-S3Store::~S3Store() { Aws::ShutdownAPI(options_); }
-
 Status S3Store::Connect(const std::string& endpoint) {
   Aws::InitAPI(options_);
   RETURN_NOT_OK(ExtractBucketAndKeyPrefix(endpoint));
@@ -110,6 +106,15 @@ Status S3Store::Get(const std::vector<ObjectID>& ids,
     std::memcpy(buffers[i]->mutable_data(), object_data.data(), object_data.size());
   }
   return err_msg.empty() ? Status::OK() : Status::IOError(err_msg);
+}
+
+Status S3Store::Disconnect() {
+  try {
+    Aws::ShutdownAPI(options_);
+  } catch (std::exception &e) {
+    return Status::IOError(e.what());
+  }
+  return Status::OK();
 }
 
 REGISTER_EXTERNAL_STORE("s3", S3Store);

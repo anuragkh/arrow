@@ -73,6 +73,8 @@ class ExternalStore {
   /// \return The return status.
   virtual Status Get(const std::vector<ObjectID>& ids,
                      std::vector<std::shared_ptr<Buffer>> buffers) = 0;
+
+  virtual Status Disconnect() = 0;
 };
 
 class ExternalStores {

@@ -1148,6 +1148,8 @@ int main(int argc, char* argv[]) {
   }
   ARROW_LOG(DEBUG) << "starting server listening on " << socket_name;
   plasma::StartServer(socket_name, plasma_directory, hugepages_enabled, external_store);
+  ARROW_CHECK_OK(external_store->Disconnect());
+
   plasma::g_runner->Shutdown();
   plasma::g_runner = nullptr;
 

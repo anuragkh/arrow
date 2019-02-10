@@ -5,13 +5,6 @@
 
 namespace plasma {
 
-JiffyStore::~JiffyStore() {
-  if (client_) {
-    ARROW_LOG(INFO) << "Removing /tmp from Jiffy";
-    client_->remove("/tmp");
-  }
-}
-
 Status plasma::JiffyStore::Connect(const std::string &endpoint) {
   try {
     auto ep = ExtractEndpointElements(endpoint);
@@ -78,6 +71,15 @@ std::tuple<std::string, int, int> plasma::JiffyStore::ExtractEndpointElements(co
 
   auto parts = jiffy::utils::string_utils::split(conn_ep, ':');
   return std::make_tuple(parts.at(0), std::stoi(parts.at(1)), std::stoi(parts.at(2)));
+}
+
+Status JiffyStore::Disconnect() {
+  try {
+    client_->remove("/tmp");
+  } catch (std::exception &e) {
+    return Status::IOError(e.what());
+  }
+  return Status::OK();
 }
 
 REGISTER_EXTERNAL_STORE("jiffy", JiffyStore);

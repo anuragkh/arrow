@@ -34,13 +34,12 @@ namespace plasma {
 
 class S3Store : public ExternalStore {
  public:
-  S3Store();
-  ~S3Store() override;
   Status Connect(const std::string& endpoint) override;
   Status Put(const std::vector<ObjectID>& ids,
              const std::vector<std::shared_ptr<Buffer>>& data) override;
   Status Get(const std::vector<ObjectID>& ids,
              std::vector<std::shared_ptr<Buffer>> buffers) override;
+  Status Disconnect() override;
 
  private:
   Status ExtractBucketAndKeyPrefix(const std::string& endpoint);
